@@ -1,0 +1,69 @@
+plugins {
+    id 'idea'
+    id 'net.neoforged.moddev'
+}
+
+base {
+    archivesName = "${mod_id}-neoforge"
+}
+
+sourceSets {
+    main {
+        java.srcDir('../common/src/main/java')
+        resources.srcDir('../common/src/main/resources')
+    }
+}
+
+java {
+    toolchain.languageVersion = JavaLanguageVersion.of(neoforge_java_version as int)
+    withSourcesJar()
+}
+
+neoForge {
+    version = project.neoforge_version
+
+    runs {
+        client {
+            client()
+            gameDirectory = project.file('runs/client')
+        }
+
+        server {
+            server()
+            gameDirectory = project.file('runs/server')
+            programArgument '--nogui'
+        }
+    }
+
+    mods {
+        "${mod_id}" {
+            sourceSet sourceSets.main
+        }
+    }
+}
+
+def generateModMetadata = tasks.register('generateModMetadata', ProcessResources) {
+    def replaceProperties = [
+        minecraft_version_range: neoforge_minecraft_version_range,
+        neoforge_version_range  : neoforge_version,
+        loader_version_range    : neoforge_loader_version_range,
+        mod_id                  : mod_id,
+        mod_name                : mod_name,
+        mod_license             : mod_license,
+        mod_version             : "${mod_version}+${neoforge_minecraft_version}",
+        mod_authors             : mod_authors,
+        mod_description        : mod_description
+    ]
+    inputs.properties(replaceProperties)
+    expand(replaceProperties)
+    from('src/main/templates')
+    into(layout.buildDirectory.dir('generated/sources/modMetadata'))
+}
+
+sourceSets.main.resources.srcDir(generateModMetadata)
+neoForge.ideSyncTask(generateModMetadata)
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.release = neoforge_java_version as int
+}

@@ -1,0 +1,8 @@
+.gradle/
+.gradle-better-radio/
+build/
+*/build/
+*/runs/
+*.iml
+.idea/
+.vscode/*.log

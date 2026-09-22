@@ -1,0 +1,77 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Better Radio: Build All",
+      "type": "process",
+      "command": "${workspaceFolder}\\gradlew.bat",
+      "args": [
+        "--no-daemon",
+        "--no-parallel",
+        "buildAll",
+        "--console=plain"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}",
+        "env": {
+          "GRADLE_USER_HOME": "${workspaceFolder}\\.gradle-better-radio"
+        }
+      },
+      "group": "build",
+      "problemMatcher": "$gradle",
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
+      }
+    },
+    {
+      "label": "Better Radio: Run Forge Client",
+      "type": "process",
+      "command": "${workspaceFolder}\\gradlew.bat",
+      "args": [
+        "--no-daemon",
+        "--no-parallel",
+        ":forge:runClient",
+        "--console=plain"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}",
+        "env": {
+          "GRADLE_USER_HOME": "${workspaceFolder}\\.gradle-better-radio"
+        }
+      },
+      "group": "test",
+      "problemMatcher": "$gradle",
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
+      }
+    },
+    {
+      "label": "Better Radio: Run NeoForge Client",
+      "type": "process",
+      "command": "${workspaceFolder}\\gradlew.bat",
+      "args": [
+        "--no-daemon",
+        "--no-parallel",
+        ":neoforge:runClient",
+        "--console=plain"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}",
+        "env": {
+          "GRADLE_USER_HOME": "${workspaceFolder}\\.gradle-better-radio"
+        }
+      },
+      "group": "test",
+      "problemMatcher": "$gradle",
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
+      }
+    }
+  ]
+}
