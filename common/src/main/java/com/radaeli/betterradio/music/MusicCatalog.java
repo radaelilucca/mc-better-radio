@@ -12,6 +12,13 @@ import java.util.Set;
 public final class MusicCatalog {
     private final Map<String, MusicTrack> tracks = new LinkedHashMap<>();
 
+    public void add(String audioFile, MusicSource source) {
+        Objects.requireNonNull(source, "source");
+        for (String sourceId : source.sourceIds()) {
+            add(audioFile, sourceId, source.biomeId());
+        }
+    }
+
     public void add(String audioFile, String sourceId, Optional<String> biomeId) {
         Objects.requireNonNull(audioFile, "audioFile");
         Objects.requireNonNull(sourceId, "sourceId");

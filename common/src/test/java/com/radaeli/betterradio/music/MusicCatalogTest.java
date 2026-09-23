@@ -44,4 +44,18 @@ public class MusicCatalogTest {
         assertEquals(List.of(new MusicTrack("minecraft:music/disc/otherside", Set.of(), Set.of("minecraft:otherside"))),
                 List.copyOf(catalog.tracks()));
     }
+
+    @Test
+    public void catalogRetainsMultipleSourceIdsFromOneRoot() {
+        MusicCatalog catalog = new MusicCatalog();
+        MusicSource source = new MusicSource("minecraft:music.overworld",
+                Set.of("biome:minecraft:plains", "event:minecraft:music.overworld"),
+                Optional.of("minecraft:plains"));
+
+        catalog.add("minecraft:music/game/calm", source);
+
+        MusicTrack track = catalog.tracks().iterator().next();
+        assertEquals(Set.of("biome:minecraft:plains", "event:minecraft:music.overworld"), track.sourceIds());
+        assertEquals(Set.of("minecraft:plains"), track.biomeIds());
+    }
 }

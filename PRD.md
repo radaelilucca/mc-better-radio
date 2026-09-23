@@ -1,6 +1,6 @@
 # Better Radio — PRD do MVP
 
-**Status:** Fase 0 concluída: identidade por arquivo, merge de origens e testes comuns passaram; Forge e NeoForge compilaram. As fases seguintes estão em implementação, incluindo verificação do refmap NeoForge. O player completo por arquivo ainda não está pronto.
+**Status:** Fases 0–1 concluídas: identidade por arquivo, merge de origens e inventário de fontes nos dois loaders implementados; testes comuns e compilações Forge/NeoForge passaram. O flatten de áudio, refmap NeoForge e player de arquivo fixo seguem em implementação.
 **Plataformas:** Minecraft 1.20.1 (Forge) e Minecraft 1.21.1 (NeoForge).
 **Arquitetura:** [minecraft-music-hotkey-architecture.md](minecraft-music-hotkey-architecture.md)
 
@@ -109,6 +109,8 @@ As fases abaixo descrevem o pivot inteiro. A existência anterior de keybind, to
 
 ### Fase 1 — Inventário de fontes por loader
 
+**Estado:** Implementado em ambos adapters: fontes de bioma, situações naturais de gameplay, situações modded observadas e músicas de discos registrados; compilação e testes do contrato comum passaram. Inspeção com conteúdo carregado no cliente fica para a validação final.
+
 **Trabalho:** enumerar as fontes de background de biomas e outras situações naturais de gameplay, além dos discos registrados em Forge 1.20.1 e NeoForge 1.21.1; incluir fontes dinâmicas de mods/datapacks; identificar lifecycle de reload e como limitar fontes a gameplay. Confirmar quais registros de disco são completos em cada versão.
 
 **Testes/validação:** fixtures ou testes de adapter verificam fontes vanilla conhecidas, fontes externas/registro dinâmico e discos. Revisão dos registros e logs num cliente de desenvolvimento.
@@ -177,4 +179,4 @@ O MVP estará pronto quando todas as fases 0–8 forem implementadas e verificad
 
 ## 9. Estado atual e migração
 
-O projeto já contém uma primeira implementação com keybinds, histórico, pausa, toast e integração de som baseada no `MusicManager`. Essa implementação é baseline e fonte de componentes reaproveitáveis, mas não prova os critérios deste pivot: `MusicTrack` ainda representa `SoundEvent`, o MusicManager ainda seleciona membro de grupo, discos ainda não formam a pool, e o controle de background ainda não é de ponta a ponta. Portanto, todas as fases de implementação do pivot estão **pendentes** até os novos contratos e testes serem entregues.
+O projeto já contém uma primeira implementação com keybinds, histórico, pausa, toast e integração de som baseada no `MusicManager`. Essa implementação é baseline e fonte de componentes reaproveitáveis, mas não prova os critérios do pivot: os adapters ainda alimentam IDs de `SoundEvent` ao player vanilla, o arquivo exato ainda não é selecionado pelo player próprio, e o controle de background ainda não está completo. Fases 0–1 estão concluídas; as demais seguem pendentes até seus próprios testes e builds passarem.

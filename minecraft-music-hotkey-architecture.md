@@ -2,7 +2,7 @@
 
 ## Status
 
-This document describes the approved pivot. The common file-identity/catalog contract is in place and both loader source trees compile; complete source flattening, fixed-file runtime behavior, and shipped mixin/refmap verification are still in progress.
+This document describes the approved pivot. The common file-identity/catalog contract and both loader source inventories are in place and compile; sound-definition flattening, fixed-file runtime behavior, and shipped refmap verification are still in progress.
 
 ## Goal and scope
 
@@ -104,4 +104,4 @@ Debug logging should make each transition auditable without logging every audio 
 
 ## Implementation phases
 
-See the phase-by-phase plan, deliverables, and acceptance checks in `PRD.md`. Phase 0 is complete; per-loader source catalogs, fixed-file playback, owned gameplay control, and final validation are underway.
+See the phase-by-phase plan, deliverables, and acceptance checks in `PRD.md`. Phases 0–1 are complete; file expansion, fixed-file playback, owned gameplay control, and final validation are underway.
