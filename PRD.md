@@ -1,6 +1,6 @@
 # Better Radio — PRD do MVP
 
-**Status:** Fases 0–4 concluídas: inventário e flatten de fontes, playback fixed-file nos dois loaders e fila comum que navega arquivos concretos com cursor Previous/Next implementados. Testes comuns, builds/JAR Forge e compilações/smoke dos dois clientes passaram. O wiring completo da sessão, reload/robustez e compatibilidade final seguem; validação audível/visual em jogo permanece para o usuário.
+**Status:** Fases 0–5 concluídas: inventário/flatten, playback fixed-file, fila por arquivo e integração dos comandos Next/Previous/Pause nos dois loaders implementados. Testes comuns, build/JAR Forge e compilações/smoke dos dois clientes passaram. Reload/robustez, bias e fechamento de compatibilidade seguem; validação audível/visual em jogo permanece para o usuário.
 **Plataformas:** Minecraft 1.20.1 (Forge) e Minecraft 1.21.1 (NeoForge).
 **Arquitetura:** [minecraft-music-hotkey-architecture.md](minecraft-music-hotkey-architecture.md)
 
@@ -149,6 +149,8 @@ As fases abaixo descrevem o pivot inteiro. A existência anterior de keybind, to
 
 ### Fase 5 — Player gameplay próprio e keybinds
 
+**Estado:** F7/F8/F9 chamam o player próprio nos dois loaders; ciclo integrado Next→Pause→Resume→Previous→Next mantém os paths exatos e não reinicia a faixa ao pausar. Troca/saída de mundo limpa a instância própria e a fila. Teste de controller com plataforma fake e smoke/builds por loader passaram.
+
 **Trabalho:** integrar Play/Next, Previous e Pause/Resume à fila e à reprodução fixed-file; assumir o controle do background gameplay, mas somente nessa tela/contexto; lifecycle de entrar/sair do mundo; preservar menu/non-gameplay vanilla e jukebox físico. Definir estado após fim natural.
 
 **Testes/validação:** controller tests com fake platform verificam comandos e sequência exata de resource locations, inclusive ida Previous→Next; testes adapter verificam que não se chama stop/pause para fontes alheias; builds e inicialização nos dois loaders. Reteste manual das três teclas em ambos.
@@ -185,4 +187,4 @@ O MVP estará pronto quando todas as fases 0–8 forem implementadas e verificad
 
 ## 9. Estado atual e migração
 
-O projeto já contém uma primeira implementação com keybinds, histórico, pausa, toast e integração de som baseada no `MusicManager`. Essa implementação é baseline e fonte de componentes reaproveitáveis. O pivot já tem inventário, identidade concreta, flatten, fixed-file playback/control e fila por arquivo; conexão final da sessão, reload, bias, feedback e compatibilidade global seguem pelas fases restantes. Fases 0–4 estão concluídas; as demais seguem pendentes até seus próprios testes e builds passarem.
+O projeto já contém uma primeira implementação com keybinds, histórico, pausa, toast e integração de som baseada no `MusicManager`. Essa implementação é baseline e fonte de componentes reaproveitáveis. O pivot já tem inventário, identidade concreta, flatten, fixed-file playback/control, fila e comandos conectados; reload, bias, feedback final e compatibilidade global seguem pelas fases restantes. Fases 0–5 estão concluídas; as demais seguem pendentes até seus próprios testes e builds passarem.

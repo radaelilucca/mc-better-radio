@@ -139,6 +139,34 @@ public class MusicControllerTest {
     }
 
     @Test
+    public void playerSessionKeepsExactFilesAcrossNextPausePreviousAndResume() {
+        TestPlatform platform = new TestPlatform(List.of(A, B, C), Optional.of(A));
+        MusicHistory history = new MusicHistory();
+        MusicSelector selector = new MusicSelector(new Random(0) {
+            @Override
+            public int nextInt(int bound) {
+                return 0;
+            }
+        });
+        MusicController controller = new MusicController(selector, history);
+
+        assertEquals(B, controller.playNext(platform).orElseThrow());
+        assertTrue(controller.togglePause(platform));
+        assertTrue(controller.isPaused(Optional.of(B)));
+        assertTrue(controller.togglePause(platform));
+        assertTrue(!controller.isPaused(Optional.of(B)));
+        assertEquals(A, controller.playNext(platform).orElseThrow());
+        assertEquals(B, controller.playPrevious(platform).orElseThrow());
+        assertEquals(A, controller.playNext(platform).orElseThrow());
+
+        assertEquals(List.of(B, A, B, A), platform.startedTracks);
+        assertEquals(1, platform.pauseCalls);
+        assertEquals(1, platform.resumeCalls);
+        assertEquals(List.of(A, B, A), history.tracks());
+        assertEquals(2, history.position());
+    }
+
+    @Test
     public void pauseHotkeyDoesNothingWithoutAnActiveTrack() {
         TestPlatform platform = new TestPlatform(List.of(A), Optional.empty());
 
