@@ -2,9 +2,12 @@ package com.radaeli.betterradio.neoforge.client;
 
 import com.mojang.blaze3d.platform.InputConstants;
 import com.radaeli.betterradio.BetterRadio;
+import com.radaeli.betterradio.neoforge.MusicConfigNeoForge;
 import com.radaeli.betterradio.music.MusicController;
+import com.radaeli.betterradio.music.MusicChannelPauseBridge;
 import com.radaeli.betterradio.music.MusicHistory;
 import com.radaeli.betterradio.music.MusicPlatform;
+import com.radaeli.betterradio.music.PlaybackToast;
 import com.radaeli.betterradio.music.MusicSelector;
 import com.radaeli.betterradio.music.MusicTrack;
 import net.minecraft.client.KeyMapping;
@@ -12,7 +15,6 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.network.chat.Component;
 import net.minecraft.core.registries.Registries;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.sounds.Music;
 import net.minecraft.sounds.SoundSource;
 import net.neoforged.api.distmarker.Dist;
@@ -22,7 +24,6 @@ import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
 import net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent;
 import net.neoforged.neoforge.client.event.RenderGuiEvent;
-import net.neoforged.neoforge.common.ModConfigSpec;
 import org.lwjgl.glfw.GLFW;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -38,18 +39,18 @@ import java.util.Optional;
 @EventBusSubscriber(modid = BetterRadio.MOD_ID, value = Dist.CLIENT, bus = EventBusSubscriber.Bus.MOD)
 public final class MusicClientNeoForge {
     private static final Logger LOGGER = LoggerFactory.getLogger(BetterRadio.MOD_ID);
-    private static final ModConfigSpec.Builder CONFIG_BUILDER = new ModConfigSpec.Builder();
-    private static final ModConfigSpec.BooleanValue SHOW_NOW_PLAYING = CONFIG_BUILDER
-            .comment("Show Better Radio playback status above the experience bar")
-            .define("showNowPlaying", true);
-    public static final ModConfigSpec CONFIG = CONFIG_BUILDER.build();
     private static final KeyMapping PLAY_NEXT_KEY = new KeyMapping(
             "key.better_radio.play_next", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_F8,
+            "key.categories.better_radio");
+    private static final KeyMapping TOGGLE_PAUSE_KEY = new KeyMapping(
+            "key.better_radio.toggle_pause", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_F9,
             "key.categories.better_radio");
     private static WeakReference<ClientLevel> activeLevel = new WeakReference<>(null);
     private static WeakReference<ClientLevel> registryLevel = new WeakReference<>(null);
     private static Map<String, Music> cachedMusic = Map.of();
+    private static long cachedMusicAtMillis;
     private static MusicController controller = createController();
+    private static final PlaybackToast PLAYBACK_TOAST = new PlaybackToast();
     private static boolean tickHandlerVerified;
 
     private MusicClientNeoForge() {
@@ -58,6 +59,7 @@ public final class MusicClientNeoForge {
     @SubscribeEvent
     public static void registerKey(RegisterKeyMappingsEvent event) {
         event.register(PLAY_NEXT_KEY);
+        event.register(TOGGLE_PAUSE_KEY);
         NeoForge.EVENT_BUS.register(ClientEvents.class);
         LOGGER.info("Registered Play/Next keybind (default F8) on NeoForge");
     }
@@ -72,12 +74,16 @@ public final class MusicClientNeoForge {
                 tickHandlerVerified = true;
                 LOGGER.info("NeoForge Play/Next client tick handler is active");
             }
+            ensureWorldContext();
             playNextIfPressed();
+            if (TOGGLE_PAUSE_KEY.consumeClick()) {
+                togglePause();
+            }
         }
 
         @SubscribeEvent
         public static void renderHud(RenderGuiEvent.Post event) {
-            if (!SHOW_NOW_PLAYING.get()) {
+            if (!MusicConfigNeoForge.SHOW_NOW_PLAYING.get()) {
                 return;
             }
             Minecraft minecraft = Minecraft.getInstance();
@@ -86,19 +92,59 @@ public final class MusicClientNeoForge {
             }
             Optional<MusicTrack> current = new NeoForgeMusicPlatform(minecraft).currentTrack();
             if (current.isEmpty()) {
+                PLAYBACK_TOAST.clear();
                 return;
             }
-            String text;
+            PlaybackToast.State state;
             if (minecraft.options.getSoundSourceVolume(SoundSource.MUSIC) <= 0.0F) {
-                text = Component.translatable("better_radio.status.muted").getString();
-            } else if (minecraft.isPaused()) {
-                text = Component.translatable("better_radio.status.paused").getString();
+                state = PlaybackToast.State.MUTED;
+            } else if (controller.isPaused(current)) {
+                state = PlaybackToast.State.PAUSED;
             } else {
-                text = Component.translatable("better_radio.status.now_playing", current.get().displayName()).getString();
+                state = PlaybackToast.State.PLAYING;
             }
+            long now = System.currentTimeMillis();
+            boolean paused = controller.isPaused(current);
+            PLAYBACK_TOAST.update(state, current.get().id(), paused, now);
+            if (!PLAYBACK_TOAST.isVisible(now)) {
+                return;
+            }
+            String text = Component.translatable(switch (PLAYBACK_TOAST.state()) {
+                case PLAYING -> "better_radio.status.playing";
+                case PAUSED -> "better_radio.status.paused";
+                case MUTED -> "better_radio.status.muted";
+            }).getString();
             event.getGuiGraphics().drawCenteredString(minecraft.font, text,
                     minecraft.getWindow().getGuiScaledWidth() / 2,
                     minecraft.getWindow().getGuiScaledHeight() - 48, 0xFFFFFF);
+        }
+    }
+
+    private static void togglePause() {
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft.player == null || minecraft.level == null) {
+            return;
+        }
+        MusicPlatform platform = new NeoForgeMusicPlatform(minecraft);
+        if (!controller.togglePause(platform)) {
+            LOGGER.warn("Pause/resume unavailable: there is no active background music channel");
+        }
+    }
+
+    private static void ensureWorldContext() {
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft.player == null || minecraft.level == null) {
+            if (activeLevel.get() != null) {
+                activeLevel.clear();
+                controller = createController();
+                PLAYBACK_TOAST.clear();
+            }
+            return;
+        }
+        if (activeLevel.get() != minecraft.level) {
+            activeLevel = new WeakReference<>(minecraft.level);
+            controller = createController();
+            PLAYBACK_TOAST.clear();
         }
     }
 
@@ -112,12 +158,14 @@ public final class MusicClientNeoForge {
             LOGGER.info("Play/Next ignored: no active player or level");
             activeLevel.clear();
             controller = createController();
+            PLAYBACK_TOAST.clear();
             return;
         }
 
         if (activeLevel.get() != minecraft.level) {
             activeLevel = new WeakReference<>(minecraft.level);
             controller = createController();
+            PLAYBACK_TOAST.clear();
         }
 
         MusicPlatform platform = new NeoForgeMusicPlatform(minecraft);
@@ -142,7 +190,7 @@ public final class MusicClientNeoForge {
         @Override
         public List<MusicTrack> eligibleTracks() {
             return musicById.keySet().stream()
-                    .map(id -> new MusicTrack(id, displayName(id)))
+                    .map(MusicTrack::new)
                     .toList();
         }
 
@@ -150,7 +198,7 @@ public final class MusicClientNeoForge {
         public Optional<MusicTrack> currentTrack() {
             return musicById.entrySet().stream()
                     .filter(entry -> minecraft.getMusicManager().isPlayingMusic(entry.getValue()))
-                    .map(entry -> new MusicTrack(entry.getKey(), displayName(entry.getKey())))
+                    .map(entry -> new MusicTrack(entry.getKey()))
                     .findFirst();
         }
 
@@ -171,8 +219,19 @@ public final class MusicClientNeoForge {
             }
         }
 
+        @Override
+        public boolean pauseCurrentTrack() {
+            return MusicChannelPauseBridge.setPaused(minecraft.getMusicManager(), minecraft.getSoundManager(), true);
+        }
+
+        @Override
+        public boolean resumeCurrentTrack() {
+            return MusicChannelPauseBridge.setPaused(minecraft.getMusicManager(), minecraft.getSoundManager(), false);
+        }
+
         private static Map<String, Music> collectMusic(Minecraft minecraft) {
-            if (registryLevel.get() == minecraft.level) {
+            long now = System.currentTimeMillis();
+            if (registryLevel.get() == minecraft.level && now - cachedMusicAtMillis < 5_000L) {
                 return cachedMusic;
             }
             Map<String, Music> result = new LinkedHashMap<>();
@@ -183,13 +242,8 @@ public final class MusicClientNeoForge {
                             music.getEvent().value().getLocation().toString(), music));
             cachedMusic = Map.copyOf(result);
             registryLevel = new WeakReference<>(minecraft.level);
+            cachedMusicAtMillis = now;
             return cachedMusic;
-        }
-
-        private static String displayName(String id) {
-            String path = ResourceLocation.tryParse(id).getPath();
-            String name = path.substring(path.lastIndexOf('/') + 1).replace('_', ' ');
-            return name.isEmpty() ? id : Character.toUpperCase(name.charAt(0)) + name.substring(1);
         }
     }
 }

@@ -8,6 +8,7 @@ import java.util.Optional;
 public final class MusicController {
     private final MusicSelector selector;
     private final MusicHistory history;
+    private String pausedTrackId;
 
     public MusicController(MusicSelector selector, MusicHistory history) {
         this.selector = Objects.requireNonNull(selector, "selector");
@@ -40,8 +41,38 @@ public final class MusicController {
         }
 
         current.ifPresent(ignored -> platform.stopCurrentTrack());
+        pausedTrackId = null;
         platform.startTrack(selected.get());
         return selected;
+    }
+
+    /** Toggles a single music-manager channel while preserving its playback position. */
+    public boolean togglePause(MusicPlatform platform) {
+        Objects.requireNonNull(platform, "platform");
+        Optional<MusicTrack> current = platform.currentTrack();
+        if (current.isEmpty()) {
+            pausedTrackId = null;
+            return false;
+        }
+
+        String currentId = current.get().id();
+        if (currentId.equals(pausedTrackId)) {
+            if (!platform.resumeCurrentTrack()) {
+                return false;
+            }
+            pausedTrackId = null;
+            return true;
+        }
+
+        if (!platform.pauseCurrentTrack()) {
+            return false;
+        }
+        pausedTrackId = currentId;
+        return true;
+    }
+
+    public boolean isPaused(Optional<MusicTrack> currentTrack) {
+        return currentTrack.map(MusicTrack::id).filter(id -> id.equals(pausedTrackId)).isPresent();
     }
 
     public MusicHistory history() {

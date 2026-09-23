@@ -1,7 +1,7 @@
 package com.radaeli.betterradio.neoforge;
 
 import com.radaeli.betterradio.BetterRadio;
-import com.radaeli.betterradio.neoforge.client.MusicClientNeoForge;
+import com.radaeli.betterradio.neoforge.MusicConfigNeoForge;
 import net.neoforged.fml.ModLoadingContext;
 import net.neoforged.fml.config.ModConfig;
 import net.neoforged.bus.api.IEventBus;
@@ -15,7 +15,7 @@ public final class BetterRadioNeoForge {
     private static final Logger LOGGER = LoggerFactory.getLogger(BetterRadio.MOD_ID);
 
     public BetterRadioNeoForge(IEventBus modBus) {
-        ModLoadingContext.get().getActiveContainer().registerConfig(ModConfig.Type.CLIENT, MusicClientNeoForge.CONFIG);
+        ModLoadingContext.get().getActiveContainer().registerConfig(ModConfig.Type.CLIENT, MusicConfigNeoForge.CONFIG);
         LOGGER.info("{} common bootstrap initialized on NeoForge", BetterRadio.MOD_ID);
     }
 }

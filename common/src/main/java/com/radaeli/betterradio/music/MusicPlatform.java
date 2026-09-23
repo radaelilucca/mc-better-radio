@@ -12,4 +12,8 @@ public interface MusicPlatform {
     void stopCurrentTrack();
 
     void startTrack(MusicTrack track);
+
+    boolean pauseCurrentTrack();
+
+    boolean resumeCurrentTrack();
 }

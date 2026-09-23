@@ -10,8 +10,8 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 public class MusicControllerTest {
-    private static final MusicTrack A = new MusicTrack("minecraft:music.a", "Track A");
-    private static final MusicTrack B = new MusicTrack("minecraft:music.b", "Track B");
+    private static final MusicTrack A = new MusicTrack("minecraft:music.a");
+    private static final MusicTrack B = new MusicTrack("minecraft:music.b");
 
     @Test
     public void emptyListReturnsEmptyAndDoesNotChangeHistory() {
@@ -73,6 +73,37 @@ public class MusicControllerTest {
         assertTrue(platform.startedTracks.isEmpty());
     }
 
+    @Test
+    public void pauseHotkeyPausesAndResumesTheSameTrack() {
+        TestPlatform platform = new TestPlatform(List.of(A, B), Optional.of(A));
+        MusicController controller = controller(new MusicHistory());
+
+        assertTrue(controller.togglePause(platform));
+        assertTrue(controller.isPaused(Optional.of(A)));
+        assertTrue(controller.togglePause(platform));
+        assertTrue(!controller.isPaused(Optional.of(A)));
+        assertEquals(1, platform.pauseCalls);
+        assertEquals(1, platform.resumeCalls);
+    }
+
+    @Test
+    public void pauseHotkeyDoesNothingWithoutAnActiveTrack() {
+        TestPlatform platform = new TestPlatform(List.of(A), Optional.empty());
+
+        assertTrue(!controller(new MusicHistory()).togglePause(platform));
+        assertEquals(0, platform.pauseCalls);
+        assertEquals(0, platform.resumeCalls);
+    }
+
+    @Test
+    public void modAndDatapackNamespacedTracksRemainEligible() {
+        MusicTrack modTrack = new MusicTrack("examplemod:music/custom");
+        MusicTrack datapackTrack = new MusicTrack("custom_pack:music/forest");
+
+        assertTrue(List.of(modTrack, datapackTrack)
+                .contains(controller(new MusicHistory()).next(List.of(modTrack, datapackTrack)).orElseThrow()));
+    }
+
     private static List<MusicTrack> selectionSequence(long seed) {
         MusicHistory history = new MusicHistory();
         MusicController controller = new MusicController(new MusicSelector(new Random(seed)), history);
@@ -89,6 +120,8 @@ public class MusicControllerTest {
         private final List<MusicTrack> tracks;
         private final Optional<MusicTrack> current;
         private int stopCalls;
+        private int pauseCalls;
+        private int resumeCalls;
         private final java.util.ArrayList<MusicTrack> startedTracks = new java.util.ArrayList<>();
 
         private TestPlatform(List<MusicTrack> tracks, Optional<MusicTrack> current) {
@@ -114,6 +147,18 @@ public class MusicControllerTest {
         @Override
         public void startTrack(MusicTrack track) {
             startedTracks.add(track);
+        }
+
+        @Override
+        public boolean pauseCurrentTrack() {
+            pauseCalls++;
+            return true;
+        }
+
+        @Override
+        public boolean resumeCurrentTrack() {
+            resumeCalls++;
+            return true;
         }
     }
 }
