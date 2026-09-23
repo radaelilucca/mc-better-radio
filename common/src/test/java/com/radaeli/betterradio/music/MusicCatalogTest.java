@@ -37,6 +37,17 @@ public class MusicCatalogTest {
     }
 
     @Test
+    public void twoFilesFromTheSameSoundEventRemainDistinctQueueEntries() {
+        MusicCatalog catalog = new MusicCatalog();
+        catalog.add("minecraft:music/game/one", "minecraft:music.game", Optional.empty());
+        catalog.add("minecraft:music/game/two", "minecraft:music.game", Optional.empty());
+
+        List<MusicTrack> tracks = List.copyOf(catalog.tracks());
+        assertEquals(2, tracks.size());
+        assertNotEquals(tracks.get(0), tracks.get(1));
+    }
+
+    @Test
     public void sourceWithoutBiomeRemainsInTheGlobalPool() {
         MusicCatalog catalog = new MusicCatalog();
         catalog.add("minecraft:music/disc/otherside", "minecraft:otherside", Optional.empty());

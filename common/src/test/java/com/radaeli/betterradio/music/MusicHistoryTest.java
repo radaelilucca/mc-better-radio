@@ -9,8 +9,8 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public class MusicHistoryTest {
-    private static final MusicTrack A = new MusicTrack("minecraft:music.a");
-    private static final MusicTrack B = new MusicTrack("minecraft:music.b");
+    private static final MusicTrack A = new MusicTrack("minecraft:music/game/calm");
+    private static final MusicTrack B = new MusicTrack("minecraft:music/end/dragon");
 
     @Test
     public void tracksExposeTheCompleteQueueAndCursorNavigatesBothWays() {

@@ -10,8 +10,9 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 public class MusicControllerTest {
-    private static final MusicTrack A = new MusicTrack("minecraft:music.a");
-    private static final MusicTrack B = new MusicTrack("minecraft:music.b");
+    private static final MusicTrack A = new MusicTrack("minecraft:music/game/calm");
+    private static final MusicTrack B = new MusicTrack("minecraft:music/end/dragon");
+    private static final MusicTrack C = new MusicTrack("example:music/forest/dusk");
 
     @Test
     public void emptyListReturnsEmptyAndDoesNotChangeHistory() {
@@ -41,7 +42,7 @@ public class MusicControllerTest {
     }
 
     @Test
-    public void currentlyPlayingVanillaTrackIsExcludedFromNextSelection() {
+    public void currentlyPlayingTrackIsRecordedBeforeNextSelection() {
         MusicHistory history = new MusicHistory();
 
         assertEquals(B, controller(history).next(List.of(A, B), java.util.Optional.of(A)).orElseThrow());
@@ -88,6 +89,25 @@ public class MusicControllerTest {
         assertEquals(List.of(A, B), platform.startedTracks);
         assertEquals(List.of(A, B), history.tracks());
         assertEquals(1, history.position());
+    }
+
+    @Test
+    public void repeatedPreviousAndNextPlayTheExactFilesAroundTheQueueCursor() {
+        MusicHistory history = new MusicHistory();
+        history.record(A);
+        history.record(B);
+        history.record(C);
+        TestPlatform platform = new TestPlatform(List.of(A, B, C), Optional.of(C));
+        MusicController controller = controller(history);
+
+        assertEquals(B, controller.playPrevious(platform).orElseThrow());
+        assertEquals(A, controller.playPrevious(platform).orElseThrow());
+        assertEquals(B, controller.playNext(platform).orElseThrow());
+        assertEquals(C, controller.playNext(platform).orElseThrow());
+
+        assertEquals(List.of(B, A, B, C), platform.startedTracks);
+        assertEquals(List.of(A, B, C), history.tracks());
+        assertEquals(2, history.position());
     }
 
     @Test

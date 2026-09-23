@@ -1,6 +1,6 @@
 # Better Radio — PRD do MVP
 
-**Status:** Fases 0–3 concluídas: inventário de fontes, flatten para arquivos concretos e reprodução fixed-file `MUSIC` com controle do background vanilla nos dois loaders implementados. Testes comuns, builds/JAR Forge e compilações/smoke NeoForge passaram. Fila integrada e robustez/reload seguem em implementação; validação audível/visual em jogo permanece para o usuário.
+**Status:** Fases 0–4 concluídas: inventário e flatten de fontes, playback fixed-file nos dois loaders e fila comum que navega arquivos concretos com cursor Previous/Next implementados. Testes comuns, builds/JAR Forge e compilações/smoke dos dois clientes passaram. O wiring completo da sessão, reload/robustez e compatibilidade final seguem; validação audível/visual em jogo permanece para o usuário.
 **Plataformas:** Minecraft 1.20.1 (Forge) e Minecraft 1.21.1 (NeoForge).
 **Arquitetura:** [minecraft-music-hotkey-architecture.md](minecraft-music-hotkey-architecture.md)
 
@@ -139,6 +139,8 @@ As fases abaixo descrevem o pivot inteiro. A existência anterior de keybind, to
 
 ### Fase 4 — Catálogo comum e fila por arquivo
 
+**Estado:** O catálogo deduplica pelo caminho concreto e mantém origens; a fila mantém ordem/cursor, Previous/Next atravessam vários arquivos exatos, e arquivos distintos de um mesmo SoundEvent continuam separados. Testes comuns cobrem navegação repetida e identidade por arquivo.
+
 **Trabalho:** implementar tipos comuns para arquivo/origens e fila da sessão; cursor Previous/Next, truncamento do ramo futuro, limpeza em troca de mundo e sem persistência. Conectar snapshots dos adapters sem trazer classes Minecraft para o core.
 
 **Testes/validação:** unit tests para deduplicação e merge de origens, ordem/cursor, início/fim, branching, pool vazia/única, reset, mudança do catálogo e identidade distinta para arquivos de um mesmo SoundEvent.
@@ -183,4 +185,4 @@ O MVP estará pronto quando todas as fases 0–8 forem implementadas e verificad
 
 ## 9. Estado atual e migração
 
-O projeto já contém uma primeira implementação com keybinds, histórico, pausa, toast e integração de som baseada no `MusicManager`. Essa implementação é baseline e fonte de componentes reaproveitáveis. O pivot já tem inventário, identidade concreta, flatten e fixed-file playback/control nos adapters; fila/reload, bias, feedback final e compatibilidade global seguem pelas fases restantes. Fases 0–3 estão concluídas; as demais seguem pendentes até seus próprios testes e builds passarem.
+O projeto já contém uma primeira implementação com keybinds, histórico, pausa, toast e integração de som baseada no `MusicManager`. Essa implementação é baseline e fonte de componentes reaproveitáveis. O pivot já tem inventário, identidade concreta, flatten, fixed-file playback/control e fila por arquivo; conexão final da sessão, reload, bias, feedback e compatibilidade global seguem pelas fases restantes. Fases 0–4 estão concluídas; as demais seguem pendentes até seus próprios testes e builds passarem.

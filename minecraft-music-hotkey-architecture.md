@@ -2,7 +2,7 @@
 
 ## Status
 
-This document describes the approved pivot. The common file-identity/catalog contract, both loader source inventories, sound-definition flattening, and fixed-file `MUSIC` playback with gameplay-only vanilla control are implemented. Both dev clients initialized and applied their hooks; release-runtime verification and manual in-game audio checks remain in final validation.
+This document describes the approved pivot. The common file-identity/catalog contract, both loader source inventories, sound-definition flattening, fixed-file `MUSIC` playback, gameplay-only vanilla control, and a tested Previous/Next queue keyed by concrete files are implemented. Both dev clients initialized and applied their hooks; release-runtime verification and manual in-game audio checks remain in final validation.
 
 ## Goal and scope
 
