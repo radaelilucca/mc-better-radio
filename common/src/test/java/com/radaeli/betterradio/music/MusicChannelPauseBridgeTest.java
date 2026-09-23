@@ -2,7 +2,7 @@ package com.radaeli.betterradio.music;
 
 import org.junit.Test;
 
-import java.util.IdentityHashMap;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Consumer;
 
@@ -11,39 +11,64 @@ import static org.junit.Assert.assertTrue;
 
 public class MusicChannelPauseBridgeTest {
     @Test
-    public void pausesAndResumesOnlyTheMusicManagerChannel() {
-        FakeMusic music = new FakeMusic();
-        FakeChannel channel = new FakeChannel();
-        FakeChannel jukebox = new FakeChannel();
-        FakeSoundEngine engine = new FakeSoundEngine();
-        engine.instanceToChannel.put(music.currentMusic, new FakeHandle(channel));
-        engine.instanceToChannel.put(new Object(), new FakeHandle(jukebox));
-        FakeSoundManager soundManager = new FakeSoundManager(engine);
+    public void pausesAndResumesOnlyTheRequestedSoundInstanceChannel() {
+        Object ownedSound = new Object();
+        Object jukeboxSound = new Object();
+        SoundEngineFixture engine = new SoundEngineFixture();
+        ChannelFixture ownedChannel = new ChannelFixture();
+        ChannelFixture jukeboxChannel = new ChannelFixture();
+        engine.instanceToChannel.put(ownedSound, new ChannelHandleFixture(ownedChannel));
+        engine.instanceToChannel.put(jukeboxSound, new ChannelHandleFixture(jukeboxChannel));
+        SoundManagerFixture soundManager = new SoundManagerFixture(engine);
 
-        assertTrue(MusicChannelPauseBridge.setPaused(music, soundManager, true));
-        assertTrue(channel.paused);
-        assertFalse(jukebox.paused);
-        assertTrue(MusicChannelPauseBridge.setPaused(music, soundManager, false));
-        assertFalse(channel.paused);
+        assertTrue(MusicChannelPauseBridge.setSoundInstancePaused(soundManager, ownedSound, true));
+        assertTrue(ownedChannel.paused);
+        assertFalse(jukeboxChannel.paused);
+
+        assertTrue(MusicChannelPauseBridge.setSoundInstancePaused(soundManager, ownedSound, false));
+        assertFalse(ownedChannel.paused);
+        assertFalse(jukeboxChannel.paused);
     }
 
     @Test
-    public void missingAudioChannelFailsSafely() {
-        FakeSoundManager soundManager = new FakeSoundManager(new FakeSoundEngine());
-        assertFalse(MusicChannelPauseBridge.setPaused(new FakeMusic(), soundManager, true));
+    public void returnsFalseWhenTheInstanceHasNoActiveChannel() {
+        assertFalse(MusicChannelPauseBridge.setSoundInstancePaused(
+                new SoundManagerFixture(new SoundEngineFixture()), new Object(), true));
     }
 
-    private static final class FakeMusic { private final Object currentMusic = new Object(); }
-    private static final class FakeSoundManager { private final FakeSoundEngine soundEngine; private FakeSoundManager(FakeSoundEngine e) { soundEngine = e; } }
-    private static final class FakeSoundEngine { private final Map<Object, Object> instanceToChannel = new IdentityHashMap<>(); }
-    private static final class FakeHandle {
-        private final FakeChannel channel;
-        private FakeHandle(FakeChannel channel) { this.channel = channel; }
-        private void execute(Consumer<FakeChannel> action) { action.accept(channel); }
+    private static final class SoundManagerFixture {
+        private final SoundEngineFixture soundEngine;
+
+        private SoundManagerFixture(SoundEngineFixture soundEngine) {
+            this.soundEngine = soundEngine;
+        }
     }
-    private static final class FakeChannel {
+
+    private static final class SoundEngineFixture {
+        private final Map<Object, ChannelHandleFixture> instanceToChannel = new HashMap<>();
+    }
+
+    private static final class ChannelHandleFixture {
+        private final ChannelFixture channel;
+
+        private ChannelHandleFixture(ChannelFixture channel) {
+            this.channel = channel;
+        }
+
+        private void execute(Consumer<ChannelFixture> action) {
+            action.accept(channel);
+        }
+    }
+
+    private static final class ChannelFixture {
         private boolean paused;
-        private void pause() { paused = true; }
-        private void unpause() { paused = false; }
+
+        private void pause() {
+            paused = true;
+        }
+
+        private void unpause() {
+            paused = false;
+        }
     }
 }

@@ -41,8 +41,6 @@ minecraft {
             workingDirectory project.file('runs/client')
             property 'forge.logging.markers', 'REGISTRIES'
             property 'forge.logging.console.level', 'debug'
-            args '--mixin.config', 'better_radio.forge.mixins.json'
-
             mods {
                 "${mod_id}" {
                     source sourceSets.main

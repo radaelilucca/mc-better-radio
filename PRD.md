@@ -1,6 +1,6 @@
 # Better Radio — PRD do MVP
 
-**Status:** Fases 0–2 concluídas: inventário de fontes, flatten de definições carregadas para arquivos concretos e accessors dos dois loaders implementados; testes comuns e compilações Forge/NeoForge passaram. O player de arquivo fixo e o controle do background vanilla seguem em implementação.
+**Status:** Fases 0–3 concluídas: inventário de fontes, flatten para arquivos concretos e reprodução fixed-file `MUSIC` com controle do background vanilla nos dois loaders implementados. Testes comuns, builds/JAR Forge e compilações/smoke NeoForge passaram. Fila integrada e robustez/reload seguem em implementação; validação audível/visual em jogo permanece para o usuário.
 **Plataformas:** Minecraft 1.20.1 (Forge) e Minecraft 1.21.1 (NeoForge).
 **Arquitetura:** [minecraft-music-hotkey-architecture.md](minecraft-music-hotkey-architecture.md)
 
@@ -129,6 +129,8 @@ As fases abaixo descrevem o pivot inteiro. A existência anterior de keybind, to
 
 ### Fase 3 — Spike de fixed-file playback e controle vanilla
 
+**Estado:** Implementado nos dois loaders: instância própria `MUSIC` resolve para o arquivo concreto, pausa/retomada atua no canal dessa instância, e o background vanilla é suprimido apenas durante gameplay. Telas que declaram música própria suspendem a faixa Better Radio; sons `RECORDS` de jukebox não são interceptados. `:forge:jar`, `:forge:runClient`, `:neoforge:compileJava` e `:neoforge:runClient` passaram; os dois clientes inicializaram e aplicaram seus hooks no ambiente dev. Ainda falta validação manual de áudio/telas/jukebox.
+
 **Trabalho:** provar reprodução de um resource location exato como sound instance `MUSIC`, volume Music, pausa/retomada do cursor, observação do path efetivamente resolvido, e forma de impedir a música vanilla gameplay concorrente sem afetar menu. Verificar que a jukebox vanilla continua no canal `RECORDS`.
 
 **Testes/validação:** adapter tests para categoria, path, volume/estado e stop/pause da instância própria; clientes de desenvolvimento nos dois loaders. Validação manual: A/B de arquivos conhecidos, slider Music, tela de menu, gameplay, pause/resume, jukebox tocando, sons de bloco e entidades.
@@ -181,4 +183,4 @@ O MVP estará pronto quando todas as fases 0–8 forem implementadas e verificad
 
 ## 9. Estado atual e migração
 
-O projeto já contém uma primeira implementação com keybinds, histórico, pausa, toast e integração de som baseada no `MusicManager`. Essa implementação é baseline e fonte de componentes reaproveitáveis, mas não prova os critérios do pivot: o arquivo exato ainda não é selecionado pelo player próprio e o controle de background ainda não está completo. Fases 0–2 estão concluídas; as demais seguem pendentes até seus próprios testes e builds passarem.
+O projeto já contém uma primeira implementação com keybinds, histórico, pausa, toast e integração de som baseada no `MusicManager`. Essa implementação é baseline e fonte de componentes reaproveitáveis. O pivot já tem inventário, identidade concreta, flatten e fixed-file playback/control nos adapters; fila/reload, bias, feedback final e compatibilidade global seguem pelas fases restantes. Fases 0–3 estão concluídas; as demais seguem pendentes até seus próprios testes e builds passarem.

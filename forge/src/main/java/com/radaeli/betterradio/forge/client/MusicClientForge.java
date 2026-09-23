@@ -10,13 +10,19 @@ import com.radaeli.betterradio.music.MusicPlatform;
 import com.radaeli.betterradio.music.PlaybackToast;
 import com.radaeli.betterradio.music.MusicSelector;
 import com.radaeli.betterradio.music.MusicTrack;
+import com.radaeli.betterradio.forge.client.ForgeMusicCatalog;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.resources.sounds.AbstractSoundInstance;
+import net.minecraft.client.resources.sounds.Sound;
+import net.minecraft.client.resources.sounds.SoundInstance;
 import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.client.sounds.SoundManager;
+import net.minecraft.client.sounds.WeighedSoundEvents;
 import net.minecraft.network.chat.Component;
-import net.minecraft.core.registries.Registries;
-import net.minecraft.sounds.Music;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.sounds.SoundSource;
+import net.minecraft.util.RandomSource;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.client.event.RegisterKeyMappingsEvent;
 import net.minecraftforge.client.event.RenderGuiOverlayEvent;
@@ -29,7 +35,6 @@ import org.lwjgl.glfw.GLFW;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -51,11 +56,15 @@ public final class MusicClientForge {
             "key.categories.better_radio");
     private static WeakReference<ClientLevel> activeLevel = new WeakReference<>(null);
     private static WeakReference<ClientLevel> registryLevel = new WeakReference<>(null);
-    private static Map<String, Music> cachedMusic = Map.of();
+    private static ForgeMusicCatalog.Snapshot cachedCatalog;
     private static long cachedMusicAtMillis;
     private static MusicController controller = createController();
     private static final PlaybackToast PLAYBACK_TOAST = new PlaybackToast();
     private static boolean tickHandlerVerified;
+    private static ForgeTrackSound ownedSound;
+    private static MusicTrack ownedTrack;
+    private static boolean ownedPaused;
+    private static boolean suspendedForVanillaScreen;
 
     private MusicClientForge() {
     }
@@ -136,13 +145,13 @@ public final class MusicClientForge {
         String resolvedAudioBefore = describeResolvedSound(minecraft);
         String historyBefore = describeHistory(controller.history());
         if (!controller.togglePause(platform)) {
-            LOGGER.warn("Playback action=PAUSE_TOGGLE result=unavailable level={} currentEvent={} resolvedAudio={} historyBefore={}",
+            LOGGER.warn("Playback action=PAUSE_TOGGLE result=unavailable level={} currentTrack={} resolvedFile={} historyBefore={}",
                     describeLevel(minecraft), describeTrack(currentBefore), resolvedAudioBefore, historyBefore);
             return;
         }
         Optional<MusicTrack> track = platform.currentTrack().or(controller.history()::lastTrack);
         boolean paused = controller.isPaused(track);
-        LOGGER.info("Playback action=PAUSE_TOGGLE result={} level={} currentEventBefore={} resolvedAudioBefore={} currentEventAfter={} resolvedAudioAfter={} historyBefore={} historyAfter={}",
+        LOGGER.info("Playback action=PAUSE_TOGGLE result={} level={} currentTrackBefore={} resolvedFileBefore={} currentTrackAfter={} resolvedFileAfter={} historyBefore={} historyAfter={}",
                 paused ? "paused" : "playing", describeLevel(minecraft), describeTrack(currentBefore),
                 resolvedAudioBefore, describeTrack(platform.currentTrack()), describeResolvedSound(minecraft), historyBefore,
                 describeHistory(controller.history()));
@@ -160,7 +169,7 @@ public final class MusicClientForge {
         String resolvedAudioBefore = describeResolvedSound(minecraft);
         String historyBefore = describeHistory(controller.history());
         Optional<MusicTrack> previous = controller.playPrevious(platform);
-        LOGGER.info("Playback action=PREVIOUS level={} currentEventBefore={} resolvedAudioBefore={} selectedEvent={} currentEventAfter={} resolvedAudioAfter={} historyBefore={} historyAfter={}",
+        LOGGER.info("Playback action=PREVIOUS level={} currentTrackBefore={} resolvedFileBefore={} selectedTrack={} currentTrackAfter={} resolvedFileAfter={} historyBefore={} historyAfter={}",
                 describeLevel(minecraft), describeTrack(currentBefore), resolvedAudioBefore,
                 describeTrack(previous), describeTrack(platform.currentTrack()), describeResolvedSound(minecraft),
                 historyBefore, describeHistory(controller.history()));
@@ -176,6 +185,7 @@ public final class MusicClientForge {
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft.player == null || minecraft.level == null) {
             LOGGER.info("Play/Next ignored: no active player or level");
+            stopOwnedPlayback(minecraft);
             activeLevel.clear();
             controller = createController();
             PLAYBACK_TOAST.clear();
@@ -183,6 +193,7 @@ public final class MusicClientForge {
         }
 
         if (activeLevel.get() != minecraft.level) {
+            stopOwnedPlayback(minecraft);
             activeLevel = new WeakReference<>(minecraft.level);
             controller = createController();
             PLAYBACK_TOAST.clear();
@@ -193,7 +204,7 @@ public final class MusicClientForge {
         String resolvedAudioBefore = describeResolvedSound(minecraft);
         String historyBefore = describeHistory(controller.history());
         Optional<MusicTrack> started = controller.playNext(platform);
-        LOGGER.info("Playback action=NEXT level={} eligibleEvents={} currentEventBefore={} resolvedAudioBefore={} selectedEvent={} currentEventAfter={} resolvedAudioAfter={} historyBefore={} historyAfter={}",
+        LOGGER.info("Playback action=NEXT level={} eligibleTracks={} currentTrackBefore={} resolvedFileBefore={} selectedTrack={} currentTrackAfter={} resolvedFileAfter={} historyBefore={} historyAfter={}",
                 describeLevel(minecraft), platform.eligibleTracks().size(), describeTrack(currentBefore),
                 resolvedAudioBefore, describeTrack(started), describeTrack(platform.currentTrack()),
                 describeResolvedSound(minecraft), historyBefore, describeHistory(controller.history()));
@@ -217,6 +228,7 @@ public final class MusicClientForge {
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft.player == null || minecraft.level == null) {
             if (activeLevel.get() != null) {
+                stopOwnedPlayback(minecraft);
                 LOGGER.info("Playback context reset reason=left_world previousLevel={} history={}",
                         describeLevel(activeLevel.get()), describeHistory(controller.history()));
                 activeLevel.clear();
@@ -228,9 +240,20 @@ public final class MusicClientForge {
         if (activeLevel.get() != minecraft.level) {
             LOGGER.info("Playback context reset reason=level_changed previousLevel={} newLevel={} history={}",
                     describeLevel(activeLevel.get()), describeLevel(minecraft), describeHistory(controller.history()));
+            stopOwnedPlayback(minecraft);
             activeLevel = new WeakReference<>(minecraft.level);
             controller = createController();
             PLAYBACK_TOAST.clear();
+        }
+        boolean screenOwnsBackground = minecraft.screen != null && minecraft.screen.getBackgroundMusic() != null;
+        if (screenOwnsBackground && ownedSound != null && !ownedPaused && !suspendedForVanillaScreen) {
+            suspendedForVanillaScreen = MusicChannelPauseBridge.setSoundInstancePaused(
+                    minecraft.getSoundManager(), ownedSound, true);
+        } else if (!screenOwnsBackground && ownedSound != null && suspendedForVanillaScreen) {
+            if (!ownedPaused) {
+                MusicChannelPauseBridge.setSoundInstancePaused(minecraft.getSoundManager(), ownedSound, false);
+            }
+            suspendedForVanillaScreen = false;
         }
     }
 
@@ -239,12 +262,14 @@ public final class MusicClientForge {
     }
 
     private static String describeHistory(MusicHistory history) {
-        return "cursor=" + history.position() + ", events="
+        return "cursor=" + history.position() + ", tracks="
                 + history.tracks().stream().map(MusicTrack::id).toList();
     }
 
     private static String describeResolvedSound(Minecraft minecraft) {
-        return MusicChannelPauseBridge.currentSoundPath(minecraft.getMusicManager()).orElse("none");
+        if (ownedSound == null) return "none";
+        Sound resolved = ownedSound.getSound();
+        return resolved == null ? ownedSound.getLocation().toString() : resolved.getPath().toString();
     }
 
     private static String describeLevel(Minecraft minecraft) {
@@ -262,70 +287,115 @@ public final class MusicClientForge {
 
     private static final class ForgeMusicPlatform implements MusicPlatform {
         private final Minecraft minecraft;
-        private final Map<String, Music> musicById;
+        private final ForgeMusicCatalog.Snapshot catalog;
 
         private ForgeMusicPlatform(Minecraft minecraft) {
             this.minecraft = minecraft;
-            this.musicById = collectMusic(minecraft);
+            long now = System.currentTimeMillis();
+            if (registryLevel.get() == minecraft.level && cachedCatalog != null
+                    && now - cachedMusicAtMillis < 5_000L) {
+                this.catalog = cachedCatalog;
+            } else {
+                this.catalog = ForgeMusicCatalog.discover(minecraft);
+                cachedCatalog = this.catalog;
+                registryLevel = new WeakReference<>(minecraft.level);
+                cachedMusicAtMillis = now;
+            }
         }
 
         @Override
         public List<MusicTrack> eligibleTracks() {
-            return musicById.keySet().stream()
-                    .map(MusicTrack::new)
-                    .toList();
+            return catalog.tracks();
         }
 
         @Override
         public Optional<MusicTrack> currentTrack() {
-            return musicById.entrySet().stream()
-                    .filter(entry -> minecraft.getMusicManager().isPlayingMusic(entry.getValue()))
-                    .map(entry -> new MusicTrack(entry.getKey()))
-                    .findFirst();
+            if (ownedSound != null && !ownedPaused && !minecraft.getSoundManager().isActive(ownedSound)) {
+                ownedSound = null;
+                ownedTrack = null;
+                suspendedForVanillaScreen = false;
+            }
+            if (ownedSound == null || ownedTrack == null) return Optional.empty();
+            Sound sound = ownedSound.getSound();
+            String fileId = sound == null ? ownedSound.getLocation().toString() : sound.getLocation().toString();
+            return Optional.of(new MusicTrack(fileId, ownedTrack.biomeIds(), ownedTrack.sourceIds()));
         }
 
         @Override
         public void stopCurrentTrack() {
-            minecraft.getMusicManager().stopPlaying();
+            stopOwnedPlayback(minecraft);
         }
 
         @Override
         public void startTrack(MusicTrack track) {
-            Music music = musicById.get(track.id());
-            if (music != null) {
-                minecraft.getMusicManager().startPlaying(music);
-                LOGGER.info("Started background music {}", track.id());
-            } else {
-                LOGGER.warn("Could not start selected music {}; it is absent from the current level's biome registry",
-                        track.id());
+            ResourceLocation fileId = ResourceLocation.tryParse(track.id());
+            Sound sourceDefinition = catalog.soundDefinitions().get(track.id());
+            if (fileId == null || sourceDefinition == null) {
+                LOGGER.warn("Could not start selected audio file {}; it is absent from the current gameplay catalog", track.id());
+                return;
             }
+            stopOwnedPlayback(minecraft);
+            ForgeTrackSound instance = new ForgeTrackSound(fileId, sourceDefinition);
+            ownedSound = instance;
+            ownedTrack = catalog.tracks().stream().filter(candidate -> candidate.id().equals(track.id()))
+                    .findFirst().orElse(track);
+            ownedPaused = false;
+            minecraft.getSoundManager().play(instance);
+            LOGGER.info("Started owned background audio file {}", track.id());
         }
 
         @Override
         public boolean pauseCurrentTrack() {
-            return MusicChannelPauseBridge.setPaused(minecraft.getMusicManager(), minecraft.getSoundManager(), true);
+            if (ownedSound == null || ownedPaused
+                    || !MusicChannelPauseBridge.setSoundInstancePaused(minecraft.getSoundManager(), ownedSound, true)) {
+                return false;
+            }
+            ownedPaused = true;
+            return true;
         }
 
         @Override
         public boolean resumeCurrentTrack() {
-            return MusicChannelPauseBridge.setPaused(minecraft.getMusicManager(), minecraft.getSoundManager(), false);
+            if (ownedSound == null || !ownedPaused
+                    || !MusicChannelPauseBridge.setSoundInstancePaused(minecraft.getSoundManager(), ownedSound, false)) {
+                return false;
+            }
+            ownedPaused = false;
+            return true;
+        }
+    }
+
+    private static void stopOwnedPlayback(Minecraft minecraft) {
+        if (ownedSound != null) minecraft.getSoundManager().stop(ownedSound);
+        ownedSound = null;
+        ownedTrack = null;
+        ownedPaused = false;
+        suspendedForVanillaScreen = false;
+    }
+
+    private static final class ForgeTrackSound extends AbstractSoundInstance {
+        private final Sound fixedFile;
+        private final WeighedSoundEvents fixedGroup;
+
+        private ForgeTrackSound(ResourceLocation fileId, Sound sourceDefinition) {
+            super(fileId, SoundSource.MUSIC, RandomSource.create());
+            this.fixedFile = new Sound(fileId.toString(), sourceDefinition.getVolume(), sourceDefinition.getPitch(),
+                    1, Sound.Type.FILE, sourceDefinition.shouldStream(), sourceDefinition.shouldPreload(),
+                    sourceDefinition.getAttenuationDistance());
+            this.fixedGroup = new WeighedSoundEvents(fileId, null);
+            this.fixedGroup.addSound(fixedFile);
+            this.sound = fixedFile;
+            this.volume = 1.0F;
+            this.pitch = 1.0F;
+            this.looping = false;
+            this.relative = true;
+            this.attenuation = SoundInstance.Attenuation.NONE;
         }
 
-        private static Map<String, Music> collectMusic(Minecraft minecraft) {
-            long now = System.currentTimeMillis();
-            if (registryLevel.get() == minecraft.level && now - cachedMusicAtMillis < 5_000L) {
-                return cachedMusic;
-            }
-            Map<String, Music> result = new LinkedHashMap<>();
-            minecraft.level.registryAccess().registryOrThrow(Registries.BIOME).stream()
-                    .map(biome -> biome.getBackgroundMusic().orElse(null))
-                    .filter(java.util.Objects::nonNull)
-                    .forEach(music -> result.putIfAbsent(
-                            music.getEvent().value().getLocation().toString(), music));
-            cachedMusic = Map.copyOf(result);
-            registryLevel = new WeakReference<>(minecraft.level);
-            cachedMusicAtMillis = now;
-            return cachedMusic;
+        @Override
+        public WeighedSoundEvents resolve(SoundManager soundManager) {
+            this.sound = fixedFile;
+            return fixedGroup;
         }
     }
 }

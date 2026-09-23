@@ -4,7 +4,6 @@ import com.mojang.blaze3d.platform.InputConstants;
 import com.radaeli.betterradio.BetterRadio;
 import com.radaeli.betterradio.neoforge.MusicConfigNeoForge;
 import com.radaeli.betterradio.music.MusicController;
-import com.radaeli.betterradio.music.MusicChannelPauseBridge;
 import com.radaeli.betterradio.music.MusicHistory;
 import com.radaeli.betterradio.music.MusicPlatform;
 import com.radaeli.betterradio.music.PlaybackToast;
@@ -12,10 +11,7 @@ import com.radaeli.betterradio.music.MusicSelector;
 import com.radaeli.betterradio.music.MusicTrack;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.network.chat.Component;
-import net.minecraft.core.registries.Registries;
-import net.minecraft.sounds.Music;
 import net.minecraft.sounds.SoundSource;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
@@ -28,11 +24,7 @@ import org.lwjgl.glfw.GLFW;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
 import java.util.Random;
-import java.lang.ref.WeakReference;
 import java.util.Optional;
 
 /** NeoForge client keybind and adapter for vanilla background music. */
@@ -48,10 +40,8 @@ public final class MusicClientNeoForge {
     private static final KeyMapping TOGGLE_PAUSE_KEY = new KeyMapping(
             "key.better_radio.toggle_pause", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_F9,
             "key.categories.better_radio");
-    private static WeakReference<ClientLevel> activeLevel = new WeakReference<>(null);
-    private static WeakReference<ClientLevel> registryLevel = new WeakReference<>(null);
-    private static Map<String, Music> cachedMusic = Map.of();
-    private static long cachedMusicAtMillis;
+    private static java.lang.ref.WeakReference<net.minecraft.client.multiplayer.ClientLevel> activeLevel =
+            new java.lang.ref.WeakReference<>(null);
     private static MusicController controller = createController();
     private static final PlaybackToast PLAYBACK_TOAST = new PlaybackToast();
     private static boolean tickHandlerVerified;
@@ -65,6 +55,7 @@ public final class MusicClientNeoForge {
         event.register(PLAY_PREVIOUS_KEY);
         event.register(TOGGLE_PAUSE_KEY);
         NeoForge.EVENT_BUS.register(ClientEvents.class);
+        NeoForge.EVENT_BUS.register(NeoForgeMusicPlatform.VanillaMusicSelection.class);
         LOGGER.info("Registered Previous (F7), Play/Next (F8), and Pause/Resume (F9) keybinds on NeoForge");
     }
 
@@ -130,13 +121,13 @@ public final class MusicClientNeoForge {
         String resolvedAudioBefore = describeResolvedSound(minecraft);
         String historyBefore = describeHistory(controller.history());
         if (!controller.togglePause(platform)) {
-            LOGGER.warn("Playback action=PAUSE_TOGGLE result=unavailable level={} currentEvent={} resolvedAudio={} historyBefore={}",
+            LOGGER.warn("Playback action=PAUSE_TOGGLE result=unavailable level={} currentTrack={} resolvedFile={} historyBefore={}",
                     describeLevel(minecraft), describeTrack(currentBefore), resolvedAudioBefore, historyBefore);
             return;
         }
         Optional<MusicTrack> track = platform.currentTrack().or(controller.history()::lastTrack);
         boolean paused = controller.isPaused(track);
-        LOGGER.info("Playback action=PAUSE_TOGGLE result={} level={} currentEventBefore={} resolvedAudioBefore={} currentEventAfter={} resolvedAudioAfter={} historyBefore={} historyAfter={}",
+        LOGGER.info("Playback action=PAUSE_TOGGLE result={} level={} currentTrackBefore={} resolvedFileBefore={} currentTrackAfter={} resolvedFileAfter={} historyBefore={} historyAfter={}",
                 paused ? "paused" : "playing", describeLevel(minecraft), describeTrack(currentBefore),
                 resolvedAudioBefore, describeTrack(platform.currentTrack()), describeResolvedSound(minecraft),
                 historyBefore, describeHistory(controller.history()));
@@ -154,7 +145,7 @@ public final class MusicClientNeoForge {
         String resolvedAudioBefore = describeResolvedSound(minecraft);
         String historyBefore = describeHistory(controller.history());
         Optional<MusicTrack> previous = controller.playPrevious(platform);
-        LOGGER.info("Playback action=PREVIOUS level={} currentEventBefore={} resolvedAudioBefore={} selectedEvent={} currentEventAfter={} resolvedAudioAfter={} historyBefore={} historyAfter={}",
+        LOGGER.info("Playback action=PREVIOUS level={} currentTrackBefore={} resolvedFileBefore={} selectedTrack={} currentTrackAfter={} resolvedFileAfter={} historyBefore={} historyAfter={}",
                 describeLevel(minecraft), describeTrack(currentBefore), resolvedAudioBefore,
                 describeTrack(previous), describeTrack(platform.currentTrack()), describeResolvedSound(minecraft),
                 historyBefore, describeHistory(controller.history()));
@@ -172,6 +163,7 @@ public final class MusicClientNeoForge {
             if (activeLevel.get() != null) {
                 LOGGER.info("Playback context reset reason=left_world previousLevel={} history={}",
                         describeLevel(activeLevel.get()), describeHistory(controller.history()));
+                NeoForgeMusicPlatform.stopOwnedTrack(minecraft);
                 activeLevel.clear();
                 controller = createController();
                 PLAYBACK_TOAST.clear();
@@ -181,10 +173,12 @@ public final class MusicClientNeoForge {
         if (activeLevel.get() != minecraft.level) {
             LOGGER.info("Playback context reset reason=level_changed previousLevel={} newLevel={} history={}",
                     describeLevel(activeLevel.get()), describeLevel(minecraft), describeHistory(controller.history()));
-            activeLevel = new WeakReference<>(minecraft.level);
+            NeoForgeMusicPlatform.stopOwnedTrack(minecraft);
+            activeLevel = new java.lang.ref.WeakReference<>(minecraft.level);
             controller = createController();
             PLAYBACK_TOAST.clear();
         }
+        NeoForgeMusicPlatform.updateScreenMusicSuspension(minecraft);
     }
 
     private static void playNextIfPressed() {
@@ -204,7 +198,8 @@ public final class MusicClientNeoForge {
         if (activeLevel.get() != minecraft.level) {
             LOGGER.info("Playback context reset reason=level_changed previousLevel={} newLevel={} history={}",
                     describeLevel(activeLevel.get()), describeLevel(minecraft), describeHistory(controller.history()));
-            activeLevel = new WeakReference<>(minecraft.level);
+            NeoForgeMusicPlatform.stopOwnedTrack(minecraft);
+            activeLevel = new java.lang.ref.WeakReference<>(minecraft.level);
             controller = createController();
             PLAYBACK_TOAST.clear();
         }
@@ -214,7 +209,7 @@ public final class MusicClientNeoForge {
         String resolvedAudioBefore = describeResolvedSound(minecraft);
         String historyBefore = describeHistory(controller.history());
         Optional<MusicTrack> started = controller.playNext(platform);
-        LOGGER.info("Playback action=NEXT level={} eligibleEvents={} currentEventBefore={} resolvedAudioBefore={} selectedEvent={} currentEventAfter={} resolvedAudioAfter={} historyBefore={} historyAfter={}",
+        LOGGER.info("Playback action=NEXT level={} eligibleTracks={} currentTrackBefore={} resolvedFileBefore={} selectedTrack={} currentTrackAfter={} resolvedFileAfter={} historyBefore={} historyAfter={}",
                 describeLevel(minecraft), platform.eligibleTracks().size(), describeTrack(currentBefore),
                 resolvedAudioBefore, describeTrack(started), describeTrack(platform.currentTrack()),
                 describeResolvedSound(minecraft), historyBefore, describeHistory(controller.history()));
@@ -239,19 +234,19 @@ public final class MusicClientNeoForge {
     }
 
     private static String describeHistory(MusicHistory history) {
-        return "cursor=" + history.position() + ", events="
+        return "cursor=" + history.position() + ", tracks="
                 + history.tracks().stream().map(MusicTrack::id).toList();
     }
 
     private static String describeResolvedSound(Minecraft minecraft) {
-        return MusicChannelPauseBridge.currentSoundPath(minecraft.getMusicManager()).orElse("none");
+        return NeoForgeMusicPlatform.activeFilePath().orElse("none");
     }
 
     private static String describeLevel(Minecraft minecraft) {
         return minecraft.level == null ? "none" : describeLevel(minecraft.level);
     }
 
-    private static String describeLevel(ClientLevel level) {
+    private static String describeLevel(net.minecraft.client.multiplayer.ClientLevel level) {
         return level == null ? "none" : level.dimension().location() + "@"
                 + Integer.toHexString(System.identityHashCode(level));
     }
@@ -260,72 +255,4 @@ public final class MusicClientNeoForge {
         return new MusicController(new MusicSelector(new Random()), new MusicHistory());
     }
 
-    private static final class NeoForgeMusicPlatform implements MusicPlatform {
-        private final Minecraft minecraft;
-        private final Map<String, Music> musicById;
-
-        private NeoForgeMusicPlatform(Minecraft minecraft) {
-            this.minecraft = minecraft;
-            this.musicById = collectMusic(minecraft);
-        }
-
-        @Override
-        public List<MusicTrack> eligibleTracks() {
-            return musicById.keySet().stream()
-                    .map(MusicTrack::new)
-                    .toList();
-        }
-
-        @Override
-        public Optional<MusicTrack> currentTrack() {
-            return musicById.entrySet().stream()
-                    .filter(entry -> minecraft.getMusicManager().isPlayingMusic(entry.getValue()))
-                    .map(entry -> new MusicTrack(entry.getKey()))
-                    .findFirst();
-        }
-
-        @Override
-        public void stopCurrentTrack() {
-            minecraft.getMusicManager().stopPlaying();
-        }
-
-        @Override
-        public void startTrack(MusicTrack track) {
-            Music music = musicById.get(track.id());
-            if (music != null) {
-                minecraft.getMusicManager().startPlaying(music);
-                LOGGER.info("Started background music {}", track.id());
-            } else {
-                LOGGER.warn("Could not start selected music {}; it is absent from the current level's biome registry",
-                        track.id());
-            }
-        }
-
-        @Override
-        public boolean pauseCurrentTrack() {
-            return MusicChannelPauseBridge.setPaused(minecraft.getMusicManager(), minecraft.getSoundManager(), true);
-        }
-
-        @Override
-        public boolean resumeCurrentTrack() {
-            return MusicChannelPauseBridge.setPaused(minecraft.getMusicManager(), minecraft.getSoundManager(), false);
-        }
-
-        private static Map<String, Music> collectMusic(Minecraft minecraft) {
-            long now = System.currentTimeMillis();
-            if (registryLevel.get() == minecraft.level && now - cachedMusicAtMillis < 5_000L) {
-                return cachedMusic;
-            }
-            Map<String, Music> result = new LinkedHashMap<>();
-            minecraft.level.registryAccess().registryOrThrow(Registries.BIOME).stream()
-                    .map(biome -> biome.getBackgroundMusic().orElse(null))
-                    .filter(java.util.Objects::nonNull)
-                    .forEach(music -> result.putIfAbsent(
-                            music.getEvent().value().getLocation().toString(), music));
-            cachedMusic = Map.copyOf(result);
-            registryLevel = new WeakReference<>(minecraft.level);
-            cachedMusicAtMillis = now;
-            return cachedMusic;
-        }
-    }
 }

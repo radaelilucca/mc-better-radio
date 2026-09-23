@@ -6,19 +6,27 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.function.Consumer;
 
-/** Pauses the SoundEngine channel belonging to MusicManager's current sound instance. */
+/** Pauses one SoundEngine channel while leaving every other sound untouched. */
 public final class MusicChannelPauseBridge {
     private MusicChannelPauseBridge() {}
 
     public static boolean setPaused(Object musicManager, Object soundManager, boolean paused) {
         try {
-            Object soundEngine = field(soundManager.getClass(), "soundEngine").get(soundManager);
             Object soundInstance = field(musicManager.getClass(), "currentMusic").get(musicManager);
+            return setSoundInstancePaused(soundManager, soundInstance, paused);
+        } catch (ReflectiveOperationException | PauseBridgeException exception) {
+            return false;
+        }
+    }
+
+    /** Pauses/resumes the channel associated with an explicitly retained SoundInstance. */
+    public static boolean setSoundInstancePaused(Object soundManager, Object soundInstance, boolean paused) {
+        try {
+            Object soundEngine = field(soundManager.getClass(), "soundEngine").get(soundManager);
             if (soundEngine == null || soundInstance == null) {
                 return false;
             }
-            Field channelsField = field(soundEngine.getClass(), "instanceToChannel");
-            Object raw = channelsField.get(soundEngine);
+            Object raw = field(soundEngine.getClass(), "instanceToChannel").get(soundEngine);
             if (!(raw instanceof Map<?, ?> channels)) {
                 return false;
             }
@@ -41,6 +49,16 @@ public final class MusicChannelPauseBridge {
             });
             return true;
         } catch (ReflectiveOperationException | PauseBridgeException exception) {
+            return false;
+        }
+    }
+
+    /** Checks whether an instance is the vanilla manager's own current background sound. */
+    public static boolean isCurrentMusicInstance(Object musicManager, Object soundInstance) {
+        try {
+            return soundInstance != null
+                    && field(musicManager.getClass(), "currentMusic").get(musicManager) == soundInstance;
+        } catch (ReflectiveOperationException exception) {
             return false;
         }
     }

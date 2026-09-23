@@ -5,7 +5,8 @@
   "compatibilityLevel": "JAVA_17",
   "refmap": "better_radio.forge.refmap.json",
   "client": [
-    "WeighedSoundEventsAccessor"
+    "WeighedSoundEventsAccessor",
+    "MusicManagerMixin"
   ],
   "injectors": {
     "defaultRequire": 1
