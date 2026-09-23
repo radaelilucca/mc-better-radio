@@ -1,345 +1,180 @@
 # Better Radio — PRD do MVP
 
-**Status:** Fases 0–6 implementadas. Testes e builds passam; validação final em jogo será feita pelo usuário.
-**Base:** `minecraft-music-hotkey-architecture.md`
-**Plataformas alvo:** Minecraft 1.20.1 (Forge) e Minecraft 1.21.1 (NeoForge)
+**Status:** Fase 0 concluída: identidade por arquivo, merge de origens e testes comuns passaram; Forge e NeoForge compilaram. As fases seguintes estão em implementação, incluindo verificação do refmap NeoForge. O player completo por arquivo ainda não está pronto.
+**Plataformas:** Minecraft 1.20.1 (Forge) e Minecraft 1.21.1 (NeoForge).
+**Arquitetura:** [minecraft-music-hotkey-architecture.md](minecraft-music-hotkey-architecture.md)
 
 ## 1. Resumo
 
-Better Radio adiciona um atalho do lado do cliente para iniciar uma música ambiente aleatória ou avançar para outra enquanto a música atual está tocando. O áudio continua usando a infraestrutura de música do Minecraft, incluindo o controle de volume **Music**. O mod deve permanecer inativo até o jogador usar o atalho e não deve controlar sons de jukeboxes, blocos, mobs ou canais ambientes.
+O MVP transforma Better Radio em um player local de música de gameplay. O mod descobre os arquivos de áudio concretos referenciados pelas definições de background de biomas e outras situações naturais de gameplay de vanilla/mods/datapacks, além das músicas de todos os discos registrados. Ele mantém uma fila de sessão e reproduz o arquivo escolhido diretamente, para que Previous, Next e Pause/Resume controlem a faixa que o jogador realmente ouve.
 
-O MVP entrega o mesmo comportamento nas duas plataformas, com um núcleo pequeno de seleção/controle e adapters que isolam diferenças reais entre Forge 1.20.1 e NeoForge 1.21.1.
+O player usa o canal vanilla `MUSIC` e respeita o controle de volume correspondente. A música de menu, créditos e demais contextos não relacionados a gameplay permanece vanilla. Better Radio não controla jukeboxes físicos: seus sons espaciais continuam no canal `RECORDS` e sobrepõem o background em `MUSIC` como no jogo vanilla.
 
-## 2. Problema e objetivos
+## 2. Escopo e decisões aprovadas
 
-O jogador não tem um comando direto e simples para escolher uma música ambiente aleatória ou avançar a faixa atual. O atalho oferece esse controle sem introduzir outro sistema de áudio ou exigir interação com menus durante o jogo.
+- **Somente gameplay:** assumir controle do background musical durante gameplay. Menu, créditos e outros contextos não-gameplay ficam fora do escopo.
+- **Pool por fontes declaradas:** incluir arquivos alcançáveis pelas definições de `Music` de background de biomas e outras situações naturais de gameplay, além de todas as definições registradas de músicas de disco. Não varrer todos os arquivos `.ogg` do jogo.
+- **Identidade por arquivo:** entradas são caminhos concretos de áudio, não IDs de `SoundEvent`. Uma entrada pode manter várias origens (biomas, situações e discos) sem duplicar sua identidade de playback.
+- **Discos locais:** os arquivos de disco podem ser tocados pelo player local. Não substituir, interceptar, parar nem mudar comportamento físico de jukebox/redstone/mundo.
+- **Sobreposição vanilla:** o background próprio toca em `MUSIC`; jukebox continua tocando em `RECORDS` com posicionamento espacial. Não pausar o background quando começa uma jukebox.
+- **Randomização contextual:** em novos sorteios, é permitido dar preferência suave aos arquivos associados ao bioma/situação atual. A preferência não elimina arquivos de outras origens do pool e deve cair no pool geral quando não houver correspondência.
+- **Fila da sessão:** Previous volta ao arquivo anterior; Next avança pelo futuro já visitado antes de criar uma nova entrada. Um novo sorteio depois de Previous substitui o ramo futuro abandonado. A fila reinicia em troca/saída de mundo e não persiste entre sessões.
+- **Pausa precisa:** Pause/Resume suspende e retoma o arquivo atual na posição em que parou, sem pausar outros sons.
+- **Feedback:** manter o toast curto acima da barra de XP; exibir `Previous`, `Next`, `Paused`, `Playing` ou `Muted`, sem caminho/ID técnico como título. Desaparece com fade após dois segundos e reaparece apenas em nova ação ou mudança de estado.
+- **Diagnóstico:** logs devem mostrar ação, arquivo solicitado e efetivamente iniciado, origem/afinidade, posição/tamanho da fila e resultado da operação, permitindo comparar estado com o que foi ouvido.
+- **Equivalência:** oferecer o mesmo comportamento em Forge 1.20.1 e NeoForge 1.21.1, isolando diferenças nos adapters.
+
+## 3. Objetivos e fora de escopo
 
 ### Objetivos
 
-- Oferecer uma tecla configurável de Play/Next.
-- Oferecer uma tecla configurável para pausar e retomar a faixa atual no ponto interrompido.
-- Iniciar uma faixa elegível quando nenhuma música estiver tocando.
-- Parar a faixa controlada e iniciar outra quando o atalho for usado durante uma música.
-- Evitar repetir a faixa anterior sempre que houver outra opção elegível.
-- Respeitar o volume de música vanilla.
-- Manter Forge e NeoForge funcionalmente equivalentes.
-- Encontrar música ambiente declarada por mods e datapacks nos biomas do mundo atual.
-- Cobrir lógica compartilhada e adapters com testes automatizados adequados.
+1. Construir o catálogo apenas a partir das fontes musicais aprovadas, incluindo música de biomas e outras situações naturais de gameplay de mods/datapacks.
+2. Resolver eventos de som em seus arquivos concretos, incluindo alternativas ponderadas e referências aninhadas válidas.
+3. Tocar um arquivo exato com a engine vanilla e categoria `MUSIC`.
+4. Gerenciar Play/Next, Previous e Pause/Resume com identidade exata e fila testável.
+5. Manter jukebox físico independente e preservar o overlay `RECORDS` sobre `MUSIC`.
+6. Oferecer feedback e logs adequados ao comportamento real do player.
 
 ### Fora do MVP
 
-- Biblioteca ou fila de reprodução escolhida pelo jogador.
-- Histórico maior que a faixa anterior, playlists, favoritos ou busca.
-- Novos canais, mixer ou biblioteca externa de áudio.
-- Controle de jukebox, sons de blocos, mobs ou sons ambientes.
-- Biblioteca comum publicada separadamente.
-- HUD persistente ou interface de gerenciamento de faixas; o feedback é um toast temporário.
-
-## 3. Usuários e fluxo principal
-
-1. O jogador configura/usa o keybind Play/Next.
-2. Se nenhuma música estiver tocando, Better Radio seleciona uma faixa elegível e a inicia.
-3. Se uma música estiver tocando, Better Radio interrompe a música ambiente atual, escolhe uma faixa diferente quando possível e a inicia sem aguardar a próxima troca automática vanilla.
-4. A tecla Pause/Resume congela e retoma a faixa atual na posição em que parou.
-5. Se habilitado, um toast acima da barra de XP aparece por dois segundos quando a faixa ou o estado muda. Ele diz `Music playing`, `Paused` ou `Muted`; o jogo não fornece um título amigável consistente para as faixas de fundo.
+- Controle ou substituição de jukeboxes físicos, redstone e seus sons no mundo.
+- Música de menu, créditos e outros fluxos não-gameplay.
+- Busca, favoritos, playlists criadas pelo usuário, GUI de biblioteca ou mixer.
+- Inclusão indiscriminada de recursos de áudio que não sejam referenciados pelas fontes elegíveis.
+- Biblioteca de áudio externa ou novo canal de volume.
+- Garantia de um título amigável para cada arquivo de background; usar rótulos de ação/estado.
 
 ## 4. Requisitos funcionais
 
 | ID | Requisito | Prioridade |
 |---|---|---|
-| FR-1 | Registrar um keybind Play/Next no cliente, remapeável pelas opções de controles do Minecraft. | MVP |
-| FR-2 | Processar uma ativação uma única vez e respeitar o foco/estado normal de entrada do jogo. | MVP |
-| FR-3 | Distinguir música ambiente em reprodução de outros sons; não usar atividade geral de áudio como indicador. | MVP |
-| FR-4 | Quando não houver música ambiente ativa, selecionar e iniciar uma faixa elegível. | MVP |
-| FR-5 | Quando houver música ambiente ativa, interrompê-la e iniciar uma faixa elegível imediatamente. | MVP |
-| FR-6 | Evitar que a seleção repita `lastTrack` se houver pelo menos duas faixas elegíveis. | MVP |
-| FR-7 | Usar o MusicManager/engine vanilla para que o volume Music continue controlando o áudio. | MVP |
-| FR-8 | Não interceptar nem parar áudio de jukeboxes, blocos, mobs ou sons ambientes. | MVP |
-| FR-9 | Exibir um toast acima da barra de XP por dois segundos quando a faixa ou o estado de reprodução mudar. | MVP |
-| FR-10 | Exibir `Music playing`, `Paused` ou `Muted`; não exibir identificadores técnicos como títulos. | MVP |
-| FR-11 | Permitir habilitar/desabilitar o toast por configuração. | MVP |
-| FR-12 | Apresentar o mesmo comportamento nas versões Forge e NeoForge suportadas. | MVP |
-| FR-13 | Registrar tecla remapeável de Pause/Resume que retome a faixa atual do ponto pausado sem pausar outros sons. | MVP |
-| FR-14 | Incluir música de biomas registrada por mods e datapacks entre as opções elegíveis. | MVP |
+| FR-1 | Descobrir definições naturais de background `Music` aplicáveis ao gameplay, incluindo contribuições carregadas de mods/datapacks. | MVP |
+| FR-2 | Descobrir todas as músicas de disco registradas em cada loader e incluí-las como fontes locais. | MVP |
+| FR-3 | Resolver cada fonte em arquivos concretos, cobrindo alternativas ponderadas e referências válidas, e deduplicar por resource location. | MVP |
+| FR-4 | Preservar as várias origens associadas a um arquivo, inclusive bioma/situação e disco. | MVP |
+| FR-5 | Tocar o arquivo selecionado diretamente, sem nova randomização pelo grupo `SoundEvent`. | MVP |
+| FR-6 | Usar `MUSIC` e respeitar volume/mute configurados pelo jogador. | MVP |
+| FR-7 | Controlar o background gameplay vanilla para evitar reprodução concorrente enquanto o player Better Radio está ativo; deixar menu/não-gameplay intacto. | MVP |
+| FR-8 | Deixar sons de jukebox física intocados em `RECORDS`, sobrepostos ao background `MUSIC` como vanilla. | MVP |
+| FR-9 | Oferecer keybinds remapeáveis Play/Next, Previous e Pause/Resume. | MVP |
+| FR-10 | Manter fila de sessão por arquivo concreto; Previous, avanço no futuro, novo sorteio e ramificação obedecem às decisões acima. | MVP |
+| FR-11 | Pausar e retomar o canal/faixa próprios do mod a partir do cursor de playback, sem pausar a engine inteira. | MVP |
+| FR-12 | Em novos sorteios, permitir bias suave por afiliação com bioma/situação sem remover o fallback global. | MVP |
+| FR-13 | Recriar/atualizar catálogo após reload de recursos e tratar referências ausentes sem crash. | MVP |
+| FR-14 | Exibir toast localizado de ação/estado por dois segundos, com fade, apenas em eventos relevantes. | MVP |
+| FR-15 | Registrar dados suficientes para distinguir arquivo pedido, arquivo resolvido, fila e resultado de áudio. | MVP |
+| FR-16 | Manter paridade comportamental nos dois loaders suportados. | MVP |
 
-## 5. Requisitos não funcionais e qualidade
+## 5. Modelo de dados e comportamento
 
-- Todo controle de áudio e entrada é client-side; o mod não exige servidor modificado.
-- Não adicionar dependência de áudio externa.
-- Priorizar API vanilla e dependências mínimas; MidnightLib permanece candidato, sujeito à validação de necessidade e compatibilidade.
-- O núcleo não deve depender de classes de loader ou de cliente específicas de uma plataforma.
-- Não criar abstrações para diferenças que não existam entre as APIs concretas.
-- Tratar lista vazia, uma única faixa elegível e término natural da música sem crash ou estado inconsistente.
-- A seleção aleatória deve permitir injeção de fonte de aleatoriedade em testes determinísticos.
+### Entrada de catálogo
 
-## 6. Arquitetura proposta
+Uma entrada é identificada pelo resource location canônico do arquivo de áudio. Ela não é o `SoundEvent` nem o nome do bioma. Metadados de origem mantêm as relações com as fontes registradas que levam ao arquivo. Se duas definições apontam ao mesmo `.ogg`, há uma entrada de playback com ambas as origens.
 
-### Núcleo compartilhado
+O catálogo parte de fontes elegíveis; ele não percorre o filesystem/asset namespace em busca de todos os sons. Eventos sem arquivos válidos são ignorados com diagnóstico. Atualizações de resource/datapack devem invalidar objetos derivados antigos e reconstruir o conjunto.
 
-- **`MusicController`**: coordena o fluxo Play/Next e mantém o estado mínimo necessário.
-- **`MusicSelector`**: seleciona entre faixas elegíveis e evita repetição imediata; não controla áudio nem interface.
-- **`MusicHistory`**: guarda somente `lastTrack` no MVP.
-- **`MusicTrack`**: representação neutra baseada somente no identificador; o título de uma faixa ambiente não tem fonte localizada consistente.
-- **`MusicPlatform`**: contrato mínimo para consultar música ambiente, parar a faixa controlada, obter faixas elegíveis, iniciar faixa e apresentar feedback quando aplicável.
-- **`ModConfig`**: configuração do feedback e, se necessário, opções futuras; configuração da tecla permanece no sistema vanilla de key mappings.
+### Operações
 
-### Adapters
+- **Play/Next:** sem faixa Better Radio atual, iniciar uma elegível; com faixa ativa, navegar à próxima entrada futura da fila ou gerar e registrar uma nova escolha.
+- **Previous:** mover o cursor para a entrada anterior e iniciar exatamente esse arquivo. No início da fila, não iniciar uma faixa aleatória.
+- **Novo sorteio após Previous:** descartar o futuro e iniciar um novo ramo.
+- **Pause/Resume:** preservar entrada e cursor; pausar/retomar apenas a instância própria.
+- **Fim natural:** registrar estado parado sem iniciar uma faixa espontaneamente; a próxima ação explícita do jogador retoma o fluxo da fila conforme o contrato definido nos testes.
+- **Pool vazia:** não chamar o motor de áudio; registrar o motivo e manter estado seguro.
+- **Uma entrada:** repetição é válida, pois não há alternativa.
+- **Mudança de mundo/desconexão:** parar o som próprio se necessário e limpar fila, cursor e referências ao contexto anterior.
+- **Reload de recursos:** reconstruir catálogo. A faixa já tocando pode terminar usando a instância atual; futuras seleções usam apenas entradas atuais. Se o arquivo ativo deixou de existir, parar com segurança e limpar a entrada inválida.
 
-- **Forge 1.20.1**: key mapping, ciclo de eventos do cliente e integração com MusicManager da versão.
-- **NeoForge 1.21.1**: equivalentes NeoForge, mantendo o contrato compartilhado.
+## 6. Arquitetura
 
-### Fluxo
+- **Common:** tipos loader-neutral para arquivo, origem, catálogo/snapshot, fila, política de seleção e estado do toast; interfaces pequenas para operações de plataforma.
+- **Forge 1.20.1:** coleta background Music de biomas/fontes gameplay e músicas de `RecordItem`; resolução de sound definitions e resource reload conforme API 1.20.1; fixed-file playback e pausa de uma instância em `MUSIC`.
+- **NeoForge 1.21.1:** coleta background Music e registry de `JukeboxSong`/itens tocáveis; resolução e reload com APIs 1.21.1; fixed-file playback e pausa de uma instância em `MUSIC`.
+- **Owned gameplay playback:** integração deve impedir que o seletor vanilla de background comece sons concorrentes durante gameplay sem capturar telas/menu ou outros sons.
+- **Jukebox vanilla:** manter caminho de reprodução, posicionamento e categoria originais, sem patch de controle da jukebox.
 
-```text
-Play/Next pressionado
-        ↓
-MusicController.next()
-        ↓
-consulta de música ambiente ativa
-   ├── não → selecionar faixa → iniciar
-   └── sim → parar música → selecionar outra → iniciar
-```
+Não assumir equivalência de API entre versões sem verificar. Qualquer hook usado para capturar a seleção vanilla, enumerar referências de som, tocar um caminho fixo ou pausar o canal precisa de teste nos dois alvos.
 
-O toast usa rótulos genéricos e localizados. A descoberta de faixas parte dos valores `getBackgroundMusic()` de todos os biomas do registro dinâmico do mundo, o que inclui entradas de mods e datapacks que seguem o mecanismo normal de música ambiente.
+## 7. Fases de implementação
 
-## 7. Fases de implementação do MVP
+As fases abaixo descrevem o pivot inteiro. A existência anterior de keybind, toast, pause bridge ou histórico por `SoundEvent` não significa que estas fases do novo design estejam concluídas. Cada fase termina com testes apropriados e commit isolado; comportamento audível/visual em jogo continua exigindo validação manual.
 
-As fases são sequenciais. O resultado de cada uma é uma condição de entrada para a seguinte; qualquer diferença entre as versões deve ser registrada antes de consolidar o contrato comum.
+### Fase 0 — Baseline e contrato do pivot
 
-### Fase 0 — Preparar e validar o scaffold
+**Trabalho:** registrar estado atual de branch/build/testes; mapear código antigo que continuará útil (keybinds, toast, histórico) e as partes baseadas em `MusicManager`/`SoundEvent` que serão substituídas; fechar interfaces de `AudioFile`, `MusicSource`, catálogo, fila e player.
 
-**Trabalho**
+**Testes/validação:** checks existentes; testes de contrato puro para igualdade/hash por caminho de áudio concreto e associação de múltiplas origens. Estado: `:common:test`, `:forge:compileJava` e `:neoforge:compileJava` passaram; verificação de refmap e runtime continua nas fases seguintes.
 
-- Confirmar build independente de `common`, Forge e NeoForge no estado atual.
-- Confirmar inicialização client-side de cada adapter e funcionamento dos runs de desenvolvimento.
-- Registrar requisitos de Java por target (Forge 1.20.1 / Java 17; NeoForge 1.21.1 / Java 21).
-- Identificar configuração atual de testes e pontos de entrada específicos de cada loader.
+**Aceite:** baseline reproduzível nos dois alvos, arquitetura usa identidade por arquivo e escopo/semântica da fila estão documentados. Nenhum resultado de fase de pivot é declarado como implementado antes de seu código existir.
 
-**Aceite**
+### Fase 1 — Inventário de fontes por loader
 
-- Os três módulos compilam e os dois clientes de desenvolvimento iniciam com o mod.
-- Falhas preexistentes do scaffold são separadas de falhas introduzidas pelas fases seguintes.
+**Trabalho:** enumerar as fontes de background de biomas e outras situações naturais de gameplay, além dos discos registrados em Forge 1.20.1 e NeoForge 1.21.1; incluir fontes dinâmicas de mods/datapacks; identificar lifecycle de reload e como limitar fontes a gameplay. Confirmar quais registros de disco são completos em cada versão.
 
-**Entrega:** baseline reproduzível e lista curta de limitações do scaffold.
+**Testes/validação:** fixtures ou testes de adapter verificam fontes vanilla conhecidas, fontes externas/registro dinâmico e discos. Revisão dos registros e logs num cliente de desenvolvimento.
 
-**Resultado da Fase 0 (2026-09-22)**
+**Aceite:** ambos adapters fornecem snapshot de fontes com IDs/afiliações sem tocar na reprodução; menus e sons alheios não entram.
 
-- `:common:check` e `:forge:build` passaram com Temurin Java 17.0.19; `:neoforge:build` passou com GraalVM Java 21.0.12.
-- `:forge:runClient` carregou Better Radio e registrou `better_radio common bootstrap initialized on Forge`; o engine de áudio inicializou.
-- `:neoforge:runClient` listou Better Radio 0.1.0+1.21.1 e registrou `better_radio common bootstrap initialized on NeoForge`; o engine de áudio inicializou.
-- Os dois clientes chegaram ao carregamento de recursos sem erro fatal relacionado ao mod. A validação confirma bootstrap do scaffold, não comportamento de reprodução, ainda fora desta fase.
-- Não há testes configurados: `common:test`, `forge:test` e `neoforge:test` reportaram `NO-SOURCE`.
-- Entrypoints: `forge/src/main/java/com/radaeli/betterradio/forge/BetterRadioForge.java` e `neoforge/src/main/java/com/radaeli/betterradio/neoforge/BetterRadioNeoForge.java`. Os alvos de execução client já estão definidos nos dois builds Gradle.
+### Fase 2 — Flatten de sound definitions para arquivos concretos
 
-**Comandos reproduzíveis (PowerShell)**
+**Trabalho:** resolver SoundEvent definitions em arquivos tocáveis, incluindo weighted alternatives, event references aninhadas e deduplicação; tratar ciclos, entradas inválidas, som ausente e streaming; preservar afiliações de fonte. Validar comportamento com packs de recursos/datapacks.
 
-Use um cache Gradle isolado no projeto quando o cache global não permitir escrita (`.gradle-better-radio/`):
+**Testes/validação:** testes com eventos de um arquivo, grupos ponderados, grupo compartilhado, referência aninhada, ciclo, caminho faltante e nomespaced modded; confirmar em cada loader que o resolvedor retorna o mesmo conjunto de candidatos declarado nos recursos carregados.
 
-```powershell
-$env:GRADLE_USER_HOME = Join-Path $PWD '.gradle-better-radio'
-$env:JAVA_HOME = 'C:\Users\lucca\.jdks\temurin-17.0.19'
-$env:Path = "$env:JAVA_HOME\bin;$env:Path"
-.\gradlew.bat :common:check :forge:build --no-daemon
-.\gradlew.bat :forge:runClient --no-daemon
+**Aceite:** catálogo só contém arquivos alcançáveis das fontes aprovadas; uma fonte pode apontar a vários arquivos e um arquivo a várias fontes; reload substitui snapshots sem referências obsoletas.
 
-$env:JAVA_HOME = 'C:\Users\lucca\.jdks\graalvm-jdk-21.0.12+7.1'
-$env:Path = "$env:JAVA_HOME\bin;$env:Path"
-.\gradlew.bat :neoforge:build --no-daemon
-.\gradlew.bat :neoforge:runClient --no-daemon
-```
+### Fase 3 — Spike de fixed-file playback e controle vanilla
 
-O primeiro setup dos clientes baixa os assets do Minecraft. Os builds também mostraram avisos existentes das ferramentas Gradle/Minecraft (incluindo APIs Gradle depreciadas e sons vanilla sem arquivo); não impediram compilação nem bootstrap. O Forge fixado em 47.4.20 informou haver 47.4.23 disponível durante a verificação; a versão não foi alterada nesta fase.
+**Trabalho:** provar reprodução de um resource location exato como sound instance `MUSIC`, volume Music, pausa/retomada do cursor, observação do path efetivamente resolvido, e forma de impedir a música vanilla gameplay concorrente sem afetar menu. Verificar que a jukebox vanilla continua no canal `RECORDS`.
 
-### Fase 1 — Spike técnico de música (Forge e NeoForge)
+**Testes/validação:** adapter tests para categoria, path, volume/estado e stop/pause da instância própria; clientes de desenvolvimento nos dois loaders. Validação manual: A/B de arquivos conhecidos, slider Music, tela de menu, gameplay, pause/resume, jukebox tocando, sons de bloco e entidades.
 
-**Trabalho**
+**Aceite:** existe caminho estável nos dois targets para tocar, inspecionar e pausar um arquivo exato; playback não é re-randomizado por SoundEvent; controle de gameplay não vaza para menu ou áudio de jukebox/outros sons.
 
-- Inspecionar APIs/fontes da versão para identificar música ambiente ativa, faixa/identificador atual, operação de parada e caminho para iniciar uma faixa via engine vanilla.
-- Determinar como obter o conjunto de faixas elegíveis; não presumir que MusicManager fornece uma lista pública.
-- Fazer um protótipo mínimo em cada target para detectar, parar, selecionar e iniciar faixa.
-- Verificar aplicação do volume Music e distinguir música ambiente de sons de jukebox, blocos, mobs e ambiente.
-- Documentar diferenças entre versões e determinar os dados mínimos de `MusicTrack`.
+### Fase 4 — Catálogo comum e fila por arquivo
 
-**Aceite**
+**Trabalho:** implementar tipos comuns para arquivo/origens e fila da sessão; cursor Previous/Next, truncamento do ramo futuro, limpeza em troca de mundo e sem persistência. Conectar snapshots dos adapters sem trazer classes Minecraft para o core.
 
-- O ciclo funciona em execução real nos dois targets sem biblioteca externa de áudio.
-- A música iniciada é afetada pelo volume Music.
-- O controle não interrompe as categorias de som fora do escopo.
-- Há um caminho tecnicamente viável para selecionar faixas e iniciar uma nova imediatamente em ambas as versões.
+**Testes/validação:** unit tests para deduplicação e merge de origens, ordem/cursor, início/fim, branching, pool vazia/única, reset, mudança do catálogo e identidade distinta para arquivos de um mesmo SoundEvent.
 
-**Gate:** se a API vanilla não permitir enumerar/reproduzir faixas diretamente, escolher e documentar a menor integração compatível com o requisito antes de implementar o núcleo. Não ampliar o escopo silenciosamente.
+**Aceite:** fila determinística e inspecionável trabalha apenas com identidade de arquivo; testes não dependem de Minecraft ou áudio real.
 
-**Resultado da Fase 1 (2026-09-22)**
+### Fase 5 — Player gameplay próprio e keybinds
 
-- `MusicManager` nos dois targets expõe `startPlaying(Music)`, `stopPlaying()` e `isPlayingMusic(Music)`, mas não expõe uma coleção de faixas nem um getter para a faixa atual. O estado só pode ser consultado fornecendo uma instância `Music` candidata.
-- A enumeração viável usa o registro de biomas do nível atual e `Biome.getBackgroundMusic()`, deduplicando as instâncias `Music`. Isso inclui faixas configuradas por biomas/mods registrados; não enumera músicas de menu, créditos ou chefe sem que um bioma as use.
-- O identificador rastreável em `Music` é o `SoundEvent` (via `Holder`), junto com `minDelay`, `maxDelay` e `replaceCurrentMusic`. O título/localização legível não está associado a `Music`; o evento de som pode ter seus próprios metadados/localização.
-- `stopPlaying()` atua sobre a instância de música mantida pelo `MusicManager`, sem parar o restante do `SoundManager`. A reprodução via `MusicManager.startPlaying(Music)` usa a categoria vanilla `MUSIC`; jukeboxes usam a fonte separada `RECORDS`, e sons de blocos/entidades/ambiente não são alvo desta parada.
-- Foi adicionado um probe temporário em F8 nos dois adapters. Dentro de um mundo, ele lista/deduplica as músicas de fundo dos biomas, identifica se uma candidata está ativa, para a música gerenciada, escolhe outra candidata quando existe e solicita sua reprodução imediata. O log registra número de candidatas, faixa selecionada, estado antes/depois e volume configurado de `MUSIC`.
-- `:common:check`, `:forge:build` e `:neoforge:build` passaram. `:forge:runClient` e `:neoforge:runClient` iniciaram Better Radio, inicializaram o engine de áudio e chegaram ao carregamento de recursos sem erro relacionado ao probe. No NeoForge, os handlers são registrados por subscriber limitado a `Dist.CLIENT`; o entrypoint comum não referencia as classes do probe.
-- Validação em jogo confirmada pelo usuário: F8 troca/inicia música no mundo aberto para LAN e a faixa respeita o volume `Music`.
-- Foi observada uma diferença que bloqueia o fechamento do spike: em mundo single-player comum, um F8 interrompe a música e um segundo F8 inicia outra; ao abrir o mundo para LAN, um único F8 troca a música sem silêncio intermediário. O código do probe solicita parada e início no mesmo pressionamento, sem ramo intencional de “parar apenas”. Comparar os logs `Music spike ... active before probe`, `found ... tracks` e `requested immediate track ... nowActive` entre os dois contextos antes de concluir se o problema é detecção, faixa selecionada ou processamento da tecla.
-- A não interferência percebida em jukeboxes e demais sons ainda não foi confirmada pelo usuário. Builds e inicialização não demonstram esse comportamento.
+**Trabalho:** integrar Play/Next, Previous e Pause/Resume à fila e à reprodução fixed-file; assumir o controle do background gameplay, mas somente nessa tela/contexto; lifecycle de entrar/sair do mundo; preservar menu/non-gameplay vanilla e jukebox físico. Definir estado após fim natural.
 
-**Validação manual do probe**
+**Testes/validação:** controller tests com fake platform verificam comandos e sequência exata de resource locations, inclusive ida Previous→Next; testes adapter verificam que não se chama stop/pause para fontes alheias; builds e inicialização nos dois loaders. Reteste manual das três teclas em ambos.
 
-1. Iniciar o cliente de desenvolvimento do target, entrar em um mundo e pressionar F8. Comparar os logs em single-player comum e com LAN aberta; verificar candidatas, detecção da faixa ativa, faixa solicitada e `nowActive`.
-2. Confirmar que um único pressionamento inicia ou troca a faixa nos dois contextos; repetir F8 e verificar que, com alternativas disponíveis, a faixa ativa não é escolhida de novo.
-3. Repetir com o volume `Music` em zero e em valor audível. Confirmar que zero silencia a faixa e que restaurar o volume permite ouvi-la.
-4. Acionar jukebox e sons de bloco, mob e ambiente antes/depois de F8; confirmar que permanecem intactos.
+**Aceite:** a música ouvida corresponde ao arquivo registrado; Previous e Next navegam arquivos concretos; pausa volta ao mesmo instante; transições de contexto não deixam som órfão nem competem com vanilla.
 
-O probe foi removido na Fase 3 e substituído pelo keybind Play/Next; F8 permanece como padrão inicial remapeável. O reteste em jogo da Fase 3 também deve verificar se a diferença SP/LAN observada no spike foi resolvida.
+### Fase 6 — Bias contextual, reload e robustez
 
-### Fase 2 — Contratos do core e seleção determinística
+**Trabalho:** adicionar preferência suave por afiliação do bioma/situação atual em novos sorteios, mantendo fallback no pool todo; definir comportamento de entradas removidas e novas após resource reload; tratar pools vazias e assets inválidos.
 
-**Trabalho**
+**Testes/validação:** seleção determinística com seed confirma preferência em amostra controlada, fallback sem correspondência, nenhuma exclusão global e ausência de repetição imediata quando há alternativa; testes de reload e evento faltante; validação manual com vanilla e conteúdo de mod/datapack.
 
-- Definir `MusicTrack`, `MusicPlatform`, `MusicSelector`, `MusicHistory` e `MusicController` com base nos achados do spike.
-- Manter no core somente regras que sejam realmente iguais nos dois loaders.
-- Implementar seleção aleatória e exclusão de `lastTrack` quando houver alternativa.
-- Definir comportamento sem faixas elegíveis e com somente uma faixa.
-- Permitir aleatoriedade injetável para testes reproduzíveis.
+**Aceite:** viés nunca torna fontes sem afinidade inalcançáveis; reload atualiza próximas seleções sem quebrar playback ativo válido.
 
-**Aceite**
+### Fase 7 — Toast e diagnósticos de uso real
 
-- Core não importa classes Forge/NeoForge/Minecraft client.
-- Seleção nunca acessa áudio, HUD ou estado global de cliente.
-- Testes unitários cobrem lista vazia, faixa única, não repetição com múltiplas opções e atualização do histórico.
+**Trabalho:** reaproveitar/ajustar toast existente e logs. Toast `Previous`, `Next`, `Paused`, `Playing`, `Muted`; fade e expiração em dois segundos, só reaparece para nova ação ou mudança de estado. Logs distinguem arquivo pedido, arquivo resolvido/ativo, afiliação, fila e resultado.
 
-**Resultado da Fase 2 (2026-09-22)**
+**Testes/validação:** unit tests da máquina temporal do toast, prioridade do mute e não reexibição após expiração; testes de formatação e evento de playback logging; inspeção de log em cada loader. Validação visual no HUD.
 
-- Contratos loader-neutral implementados em `common`: `MusicTrack`, `MusicPlatform`, `MusicSelector`, `MusicHistory` e `MusicController`.
-- `MusicController` seleciona e registra a faixa seguinte sem executar ações de áudio; a integração dos métodos de `MusicPlatform` fica para a Fase 3.
-- A seleção usa `RandomGenerator` injetável, retorna vazio quando não há candidatas, permite repetir quando há somente uma faixa e exclui o último ID quando existem alternativas.
-- Testes JUnit adicionados para lista vazia, faixa única, não repetição, histórico e seleção reproduzível.
-- A discrepância de reprodução entre singleplayer e LAN permanece pendente da Fase 1 e deve ser considerada na implementação do adapter na Fase 3.
+**Aceite:** feedback nunca apresenta SoundEvent/path como nome amigável, não renova todo frame e logs permitem comparar inequivocamente arquivo ouvido com estado reportado.
 
-### Fase 3 — Integração de keybind e fluxo Play/Next
+### Fase 8 — Compatibilidade e entrega do MVP
 
-**Trabalho**
+**Trabalho:** revisar isolamento client-side, resource reload, configurações, keybinds, idioma, metadados, instruções públicas e documentação técnica; remover/desativar caminhos antigos de `MusicManager` que conflitem com o player.
 
-- Registrar o keybind Play/Next nos dois adapters usando os eventos próprios de cada loader.
-- Acionar o controller apenas no cliente e uma vez por pressionamento.
-- Ligar consulta de estado, parada e início aos métodos descobertos no spike.
-- Tratar troca de mundo, desconexão e ausência de player/nível para não manter referências inválidas.
+**Testes/validação:** common tests e build/check de Forge (Java 17) e NeoForge (Java 21); teste de inicialização client; inspeção de conteúdo dos JARs. Matriz manual nos dois jogos para: background vanilla, faixa de mod/datapack, disco local, jukebox espacial simultânea, volume/mute, Next/Previous/branch, Pause/Resume, reload, menu, disconnect, toast e logs.
 
-**Aceite**
+**Aceite:** comportamento e conteúdo têm paridade nos targets; nenhuma concorrência vanilla em gameplay; menu e jukebox mantêm o fluxo vanilla; critérios funcionais acima passam. Builds não substituem validação auditiva/visual em jogo.
 
-- A tecla aparece nas opções de controles e pode ser remapeada.
-- Um pressionamento inicia ou avança a música conforme o fluxo principal.
-- Segurar a tecla não dispara trocas contínuas, salvo comportamento normal explicitamente validado do key mapping.
-- Fluxo equivalente em Forge 1.20.1 e NeoForge 1.21.1.
+## 8. Critérios de pronto
 
-**Resultado da Fase 3 (2026-09-22)**
+O MVP estará pronto quando todas as fases 0–8 forem implementadas e verificadas, com testes automatizados para regras comuns, checks/build por loader e validação manual por target. Em especial, o arquivo que os logs dizem tocar deve corresponder ao que é ouvido; Previous/Next/Pause devem atuar nesse arquivo exato; volume Music deve ser respeitado; jukebox física deve continuar independente; e não-gameplay deve permanecer vanilla.
 
-- O probe foi substituído pelo keybind remapeável `Play/Next Music`, com F8 como padrão, registrado nos dois loaders e consumido uma vez por evento de tick do cliente.
-- Os adapters implementam `MusicPlatform` usando as músicas de fundo distintas encontradas no registro de biomas. O controller consulta a faixa ativa, exclui essa faixa da próxima seleção, para a faixa gerenciada quando identificada e inicia a alternativa no mesmo pressionamento.
-- O estado do adapter não retém referências a player, nível ou cliente entre ticks; fora de um mundo, o pressionamento é ignorado.
-- Testes cobrem o fluxo do controller com adapter falso: uma chamada para uma faixa ativa resulta em stop e start de uma alternativa; lista vazia não chama áudio.
-- O usuário reportou que a validação mais recente ainda reproduz o sintoma de tocar somente a cada dois pressionamentos. A correção foi incluída nesta integração, mas precisa de novo reteste ingame para confirmar; builds não validam o comportamento real do `MusicManager` em singleplayer/LAN.
-- No diagnóstico posterior, `:forge:runClient` e `:neoforge:runClient` confirmaram no log o registro do keybind e a execução do listener de tick. O NeoForge agora registra explicitamente o listener no event bus de cliente. A recepção de um pressionamento real de F8 e a reprodução dentro de um mundo ainda aguardam confirmação ingame.
-- Reteste ingame confirmado pelo usuário: F8 funciona corretamente.
+## 9. Estado atual e migração
 
-### Fase 4 — Configuração e indicador de estado
-
-**Trabalho**
-
-- Implementar toast textual compacto ancorado acima da barra de XP, visível por dois segundos.
-- Exibir `Music playing`, `Paused` ou `Muted`, sem título técnico de faixa.
-- Mostrar o toast quando a faixa, o estado de pausa ou o estado de mute mudar; não renovar sua duração a cada frame.
-- Implementar `showNowPlaying` com padrão habilitado e opção para ocultar o indicador.
-- Usar rótulos localizados sem inferir título a partir do identificador do som.
-- Avaliar MidnightLib contra configuração nativa do loader, considerando dependência, UX e paridade entre versões.
-
-**Aceite**
-
-- O jogador consegue desabilitar o indicador sem desativar o keybind.
-- O indicador fica acima da barra de XP, apresenta os três estados definidos e acompanha mudanças sem ficar obsoleto.
-- O indicador não altera o áudio.
-- Mesmo comportamento e nomes equivalentes nos dois targets.
-- A decisão de biblioteca/configuração fica registrada e a distribuição informa dependências obrigatórias, se existirem.
-
-**Resultado da implementação (2026-09-23)**
-
-- Forge e NeoForge mostram o toast acima da barra de XP por dois segundos ao detectar mudança de faixa, pausa/retomada ou mute.
-- Foi confirmado pela inspeção da API que `Music` referencia o evento de som e seus atrasos, sem título de faixa localizado. O texto foi simplificado para `Music playing`, `Paused` e `Muted`.
-- A opção `showNowPlaying` continua ligada por padrão em configuração client nativa dos dois loaders; sem dependência externa.
-- Builds e bootstrap dos clientes passaram nas fases anteriores; inspeção visual em jogo segue pendente.
-
-### Fase 5 — Testes automatizados, robustez e compatibilidade
-
-**Trabalho**
-
-- Completar testes automatizados do core e adicionar testes de adapter onde a infraestrutura permitir (mapeamento de estado, seleção e chamadas esperadas à plataforma).
-- Implementar tecla Pause/Resume, preservando o ponto atual da faixa e sem pausar outros sons.
-- Incluir música ambiente registrada em biomas por mods e datapacks e renovar o cache após reload/alterações dos registros.
-- Cobrir a máquina de estados do toast: expiração em dois segundos, sem renovação por render, reexibição em mudanças relevantes.
-- Exercitar lista vazia, somente uma faixa, término natural, troca repetida, transição de mundo e ausência temporária de contexto do cliente.
-- Fazer revisão de carregamento dedicado para garantir que classes client-only não sejam referenciadas por bootstrap comum; o recurso é client-side, mas os metadados e carregamento precisam continuar válidos.
-- Confirmar que a interação com sons não musicais permanece intacta em verificações controladas.
-
-**Aceite**
-
-- Testes automatizados do core passam de forma determinística.
-- Pausar e retomar afeta somente o canal de música mantido pelo `MusicManager`.
-- Toast expira no prazo e só reaparece quando a faixa ou um estado de reprodução muda.
-- Faixas de namespaces externos permanecem elegíveis pelo seletor.
-- Build e verificação dos dois adapters passam.
-- Nenhum caminho de erro deixa a música ambiente parada sem tentativa válida de iniciar outra ou causa erro em log.
-- Verificação client-side confirma volume Music e ausência de interferência nas fontes fora do escopo.
-
-**Resultado da Fase 5 (2026-09-23)**
-
-- F8 segue como Play/Next; F9 é o padrão remapeável de Pause/Resume. A pausa acessa o canal da instância atual do `MusicManager` para conservar sua posição, sem chamar pausa geral do motor de áudio.
-- Toast de dois segundos implementado com estado puro testado no módulo `common`. Rótulos são `Music playing`, `Paused` e `Muted`; nenhuma tradução tenta apresentar o ID técnico como título.
-- Os adapters coletam músicas de fundo de todos os biomas do registro dinâmico do nível e atualizam cache a cada cinco segundos, cobrindo músicas adicionadas por mods/datapacks através da música natural de bioma.
-- 16 testes JUnit do `common` passaram: seleção/controller (10), ponte de pausa (2), toast (4). A ponte também verifica que um canal de som alheio não é pausado.
-- `:common:check :forge:build` passou com Java 17; `:neoforge:build` passou com Java 21. JARs incluem `META-INF/mods.toml` e `META-INF/neoforge.mods.toml`.
-- A revisão do entrypoint confirmou que ele referencia somente a configuração do loader; as classes client-only não são carregadas pelo bootstrap comum. A execução do servidor de desenvolvimento Forge parou na confirmação de EULA antes do bootstrap do mundo, por isso não foi tratada como teste de servidor bem-sucedido.
-- Reprodução e retomada real, posição do toast e compatibilidade sonora com mods/datapacks dependem da validação final em jogo.
-
-### Fase 6 — Polimento, documentação e entrega do MVP
-
-**Trabalho**
-
-- Revisar os nomes das teclas, mensagens e opções nos idiomas incluídos.
-- Documentar instalação, versões/loaders suportados, uso do atalho, opção de feedback e limitações conhecidas em linguagem voltada ao jogador.
-- Validar metadados e dependências dos artefatos Forge e NeoForge.
-- Executar uma matriz final de verificação nos dois targets e preparar os artefatos de distribuição conforme o fluxo do projeto.
-
-**Aceite**
-
-- Forge 1.20.1 e NeoForge 1.21.1 produzem artefatos identificáveis e carregáveis.
-- Instruções de uso permitem configurar Play/Next e Pause/Resume sem consultar documentação técnica.
-- A versão entregue corresponde ao escopo e aos critérios de aceite deste documento.
-
-**Resultado da Fase 6 (2026-09-23)**
-
-- README em inglês documenta loaders/versões, teclas padrão/remapeáveis, volume Music, toast e suporte a música natural de mods/datapacks.
-- JARs finais nomeados por loader e versão: `better_radio-forge-0.1.0+1.20.1.jar` e `better_radio-neoforge-0.1.0+1.21.1.jar`. Metadados foram inspecionados e contêm os IDs, versões e dependências esperados.
-- `:common:check`, `:forge:build` e `:neoforge:build` passaram. Os clientes de desenvolvimento dos dois loaders inicializaram o mod, registraram o keybind e ativaram o handler de tick.
-- A execução do servidor de desenvolvimento Forge foi bloqueada pela tela de EULA antes do bootstrap do mundo; nenhum aceite de EULA foi gravado. Os entrypoints foram inspecionados e não referenciam classes client-only.
-- O usuário fará a confirmação de reprodução, pausa/retomada, posição do toast e sons não relacionados em jogo nos dois alvos.
-
-## 8. Plano de testes e validação
-
-| Camada | Verificações principais | Critério |
-|---|---|---|
-| Unitária (core) | Seleção sem repetição, lista vazia/única, histórico e fluxo do controller com plataforma simulada. | Reproduzível, sem Minecraft ou áudio real. |
-| Integração (cada loader) | Registro de teclas, ponte para APIs de música e configuração. | Compila e exercita os pontos de integração específicos. |
-| Cliente em jogo (cada versão) | Iniciar/avançar/pausar/retomar, mudança de contexto, volume Music, feedback e sons fora do escopo. | Comportamento observado nos dois targets. |
-| Carregamento | Metadados, dependências, inicialização dos dois clientes e isolamento client-side no entrypoint comum. | JARs identificados e clientes iniciam sem erro relacionado ao mod. |
-
-Builds e testes automatizados dão evidência estrutural; comportamento de áudio, volume e não interferência requer validação em cliente em execução para cada versão.
-
-## 9. Riscos e decisões em aberto
-
-1. **Pausa individual:** o MusicManager não oferece pausa pública para sua instância atual; a ponte usa os campos e o canal interno das versões alvo, portanto exige validação final em jogo por loader.
-2. **Descoberta de música:** são elegíveis as músicas naturais referenciadas por biomas no registro do mundo. Música iniciada por outros sistemas que não usem as definições de bioma fica fora do fluxo natural e não é enumerada.
-3. **Toast:** a posição acima da XP e as mudanças de estado precisam de confirmação visual em jogo nos dois targets.
-4. **Configuração:** configuração nativa client de cada loader foi escolhida; MidnightLib não é dependência.
-5. **Lista com uma faixa:** a não repetição é impossível; repetir a única opção elegível é o fallback esperado.
-
-## 10. Definição de pronto
-
-O MVP estará pronto quando todas as fases (0 a 6) estiverem concluídas; os critérios funcionais e automatizados forem atendidos; e a validação em cliente confirmar Play/Next, pausa/retomada, volume Music, toast configurável por dois segundos e ausência de interferência em sons fora do escopo em Forge 1.20.1 e NeoForge 1.21.1.
+O projeto já contém uma primeira implementação com keybinds, histórico, pausa, toast e integração de som baseada no `MusicManager`. Essa implementação é baseline e fonte de componentes reaproveitáveis, mas não prova os critérios deste pivot: `MusicTrack` ainda representa `SoundEvent`, o MusicManager ainda seleciona membro de grupo, discos ainda não formam a pool, e o controle de background ainda não é de ponta a ponta. Portanto, todas as fases de implementação do pivot estão **pendentes** até os novos contratos e testes serem entregues.
