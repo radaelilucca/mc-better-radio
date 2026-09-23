@@ -1,7 +1,18 @@
+buildscript {
+    repositories {
+        maven { url = 'https://repo.spongepowered.org/repository/maven-public/' }
+    }
+    dependencies {
+        classpath 'org.spongepowered:mixingradle:0.7.38'
+    }
+}
+
 plugins {
     id 'idea'
     id 'net.minecraftforge.gradle'
 }
+
+apply plugin: 'org.spongepowered.mixin'
 
 base {
     archivesName = "${mod_id}-forge"
@@ -30,6 +41,7 @@ minecraft {
             workingDirectory project.file('runs/client')
             property 'forge.logging.markers', 'REGISTRIES'
             property 'forge.logging.console.level', 'debug'
+            args '--mixin.config', 'better_radio.forge.mixins.json'
 
             mods {
                 "${mod_id}" {
@@ -53,8 +65,14 @@ minecraft {
     }
 }
 
+mixin {
+    add sourceSets.main, 'better_radio.forge.refmap.json'
+    config 'better_radio.forge.mixins.json'
+}
+
 dependencies {
     minecraft "net.minecraftforge:forge:${forge_minecraft_version}-${forge_version}"
+    annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
 }
 
 processResources {
@@ -79,6 +97,12 @@ processResources {
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
     options.release = forge_java_version as int
+}
+
+jar {
+    manifest {
+        attributes('MixinConfigs': 'better_radio.forge.mixins.json')
+    }
 }
 
 // Forge's development scanner needs a source set's classes and resources to

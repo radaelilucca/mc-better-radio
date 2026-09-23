@@ -1,6 +1,6 @@
 # Better Radio — PRD do MVP
 
-**Status:** Fases 0–1 concluídas: identidade por arquivo, merge de origens e inventário de fontes nos dois loaders implementados; testes comuns e compilações Forge/NeoForge passaram. O flatten de áudio, refmap NeoForge e player de arquivo fixo seguem em implementação.
+**Status:** Fases 0–2 concluídas: inventário de fontes, flatten de definições carregadas para arquivos concretos e accessors dos dois loaders implementados; testes comuns e compilações Forge/NeoForge passaram. O player de arquivo fixo e o controle do background vanilla seguem em implementação.
 **Plataformas:** Minecraft 1.20.1 (Forge) e Minecraft 1.21.1 (NeoForge).
 **Arquitetura:** [minecraft-music-hotkey-architecture.md](minecraft-music-hotkey-architecture.md)
 
@@ -119,6 +119,8 @@ As fases abaixo descrevem o pivot inteiro. A existência anterior de keybind, to
 
 ### Fase 2 — Flatten de sound definitions para arquivos concretos
 
+**Estado:** Implementado em ambos loaders: alternativas, referências de evento aninhadas, deduplicação, ciclos e definições ausentes são resolvidos em arquivos concretos carregados. `:common:test`, `:forge:compileJava` e `:neoforge:compileJava` passaram; o smoke test NeoForge confirmou a aplicação do accessor no ambiente dev.
+
 **Trabalho:** resolver SoundEvent definitions em arquivos tocáveis, incluindo weighted alternatives, event references aninhadas e deduplicação; tratar ciclos, entradas inválidas, som ausente e streaming; preservar afiliações de fonte. Validar comportamento com packs de recursos/datapacks.
 
 **Testes/validação:** testes com eventos de um arquivo, grupos ponderados, grupo compartilhado, referência aninhada, ciclo, caminho faltante e nomespaced modded; confirmar em cada loader que o resolvedor retorna o mesmo conjunto de candidatos declarado nos recursos carregados.
@@ -179,4 +181,4 @@ O MVP estará pronto quando todas as fases 0–8 forem implementadas e verificad
 
 ## 9. Estado atual e migração
 
-O projeto já contém uma primeira implementação com keybinds, histórico, pausa, toast e integração de som baseada no `MusicManager`. Essa implementação é baseline e fonte de componentes reaproveitáveis, mas não prova os critérios do pivot: os adapters ainda alimentam IDs de `SoundEvent` ao player vanilla, o arquivo exato ainda não é selecionado pelo player próprio, e o controle de background ainda não está completo. Fases 0–1 estão concluídas; as demais seguem pendentes até seus próprios testes e builds passarem.
+O projeto já contém uma primeira implementação com keybinds, histórico, pausa, toast e integração de som baseada no `MusicManager`. Essa implementação é baseline e fonte de componentes reaproveitáveis, mas não prova os critérios do pivot: o arquivo exato ainda não é selecionado pelo player próprio e o controle de background ainda não está completo. Fases 0–2 estão concluídas; as demais seguem pendentes até seus próprios testes e builds passarem.

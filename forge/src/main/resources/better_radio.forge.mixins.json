@@ -1,0 +1,13 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "com.radaeli.betterradio.forge.mixin.client",
+  "compatibilityLevel": "JAVA_17",
+  "refmap": "better_radio.forge.refmap.json",
+  "client": [
+    "WeighedSoundEventsAccessor"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

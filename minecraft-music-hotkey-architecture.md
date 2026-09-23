@@ -2,7 +2,7 @@
 
 ## Status
 
-This document describes the approved pivot. The common file-identity/catalog contract and both loader source inventories are in place and compile; sound-definition flattening, fixed-file runtime behavior, and shipped refmap verification are still in progress.
+This document describes the approved pivot. The common file-identity/catalog contract, both loader source inventories, and flattening of loaded sound definitions to concrete files are implemented; fixed-file playback and vanilla gameplay-music ownership are in progress. The NeoForge development smoke test applied its accessor mixin; release-runtime verification remains part of final validation.
 
 ## Goal and scope
 

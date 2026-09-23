@@ -1,0 +1,12 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "com.radaeli.betterradio.neoforge.client.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "client": [
+    "WeighedSoundEventsAccessor"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
