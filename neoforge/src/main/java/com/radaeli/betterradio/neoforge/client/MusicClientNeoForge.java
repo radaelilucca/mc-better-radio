@@ -167,7 +167,7 @@ public final class MusicClientNeoForge {
         if (previous.isEmpty()) {
             LOGGER.info("Previous keybind ignored: playback history has no earlier track");
         } else {
-            LOGGER.info("Playing previous background music {}", previous.get().id());
+            LOGGER.info("Playing previous background music {}", MusicTrackDiagnostics.describe(previous.get()));
             showAction(minecraft, PlaybackToast.State.PREVIOUS, previous.get(), false);
         }
     }

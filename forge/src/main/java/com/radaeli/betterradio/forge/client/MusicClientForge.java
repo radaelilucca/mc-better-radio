@@ -194,7 +194,7 @@ public final class MusicClientForge {
         if (previous.isEmpty()) {
             LOGGER.info("Previous keybind ignored: playback history has no earlier track");
         } else {
-            LOGGER.info("Playing previous background music {}", previous.get().id());
+            LOGGER.info("Playing previous background music {}", MusicTrackDiagnostics.describe(previous.get()));
             showAction(minecraft, PlaybackToast.State.PREVIOUS, previous.get(), false);
         }
     }
@@ -370,7 +370,7 @@ public final class MusicClientForge {
                     .findFirst().orElse(track);
             ownedPaused = false;
             minecraft.getSoundManager().play(instance);
-            LOGGER.info("Started owned background audio file {}", track.id());
+            LOGGER.info("Started owned background audio file {}", MusicTrackDiagnostics.describe(ownedTrack));
         }
 
         @Override
