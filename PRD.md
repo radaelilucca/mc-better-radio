@@ -1,6 +1,6 @@
 # Better Radio — PRD do MVP
 
-**Status:** Fase 5 implementada e validada por testes/builds; Fase 6 em andamento. Validação final em jogo será feita pelo usuário.
+**Status:** Fases 0–6 implementadas. Testes e builds passam; validação final em jogo será feita pelo usuário.
 **Base:** `minecraft-music-hotkey-architecture.md`
 **Plataformas alvo:** Minecraft 1.20.1 (Forge) e Minecraft 1.21.1 (NeoForge)
 
@@ -313,6 +313,14 @@ O probe foi removido na Fase 3 e substituído pelo keybind Play/Next; F8 permane
 - Instruções de uso permitem configurar Play/Next e Pause/Resume sem consultar documentação técnica.
 - A versão entregue corresponde ao escopo e aos critérios de aceite deste documento.
 
+**Resultado da Fase 6 (2026-09-23)**
+
+- README em inglês documenta loaders/versões, teclas padrão/remapeáveis, volume Music, toast e suporte a música natural de mods/datapacks.
+- JARs finais nomeados por loader e versão: `better_radio-forge-0.1.0+1.20.1.jar` e `better_radio-neoforge-0.1.0+1.21.1.jar`. Metadados foram inspecionados e contêm os IDs, versões e dependências esperados.
+- `:common:check`, `:forge:build` e `:neoforge:build` passaram. Os clientes de desenvolvimento dos dois loaders inicializaram o mod, registraram o keybind e ativaram o handler de tick.
+- A execução do servidor de desenvolvimento Forge foi bloqueada pela tela de EULA antes do bootstrap do mundo; nenhum aceite de EULA foi gravado. Os entrypoints foram inspecionados e não referenciam classes client-only.
+- O usuário fará a confirmação de reprodução, pausa/retomada, posição do toast e sons não relacionados em jogo nos dois alvos.
+
 ## 8. Plano de testes e validação
 
 | Camada | Verificações principais | Critério |
@@ -320,7 +328,7 @@ O probe foi removido na Fase 3 e substituído pelo keybind Play/Next; F8 permane
 | Unitária (core) | Seleção sem repetição, lista vazia/única, histórico e fluxo do controller com plataforma simulada. | Reproduzível, sem Minecraft ou áudio real. |
 | Integração (cada loader) | Registro de teclas, ponte para APIs de música e configuração. | Compila e exercita os pontos de integração específicos. |
 | Cliente em jogo (cada versão) | Iniciar/avançar/pausar/retomar, mudança de contexto, volume Music, feedback e sons fora do escopo. | Comportamento observado nos dois targets. |
-| Carregamento | Metadados, dependências e isolamento client-side. | Ambos carregam sem erros relacionados ao mod. |
+| Carregamento | Metadados, dependências, inicialização dos dois clientes e isolamento client-side no entrypoint comum. | JARs identificados e clientes iniciam sem erro relacionado ao mod. |
 
 Builds e testes automatizados dão evidência estrutural; comportamento de áudio, volume e não interferência requer validação em cliente em execução para cada versão.
 

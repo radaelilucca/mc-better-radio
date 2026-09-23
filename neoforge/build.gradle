@@ -7,6 +7,8 @@ base {
     archivesName = "${mod_id}-neoforge"
 }
 
+version = "${mod_version}+${neoforge_minecraft_version}"
+
 sourceSets {
     main {
         java.srcDir('../common/src/main/java')
