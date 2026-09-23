@@ -2,7 +2,7 @@
 
 ## Status
 
-This document describes the approved pivot. The common file-identity/catalog contract, both loader source inventories, sound-definition flattening, fixed-file `MUSIC` playback, gameplay-only vanilla control, concrete-file Previous/Next queue, and F7/F8/F9 command integration are implemented. Both dev clients initialized and applied their hooks; release-runtime verification and manual in-game audio checks remain in final validation.
+This document describes the approved pivot. The common file-identity/catalog contract, both loader source inventories, sound-definition flattening, fixed-file `MUSIC` playback, gameplay-only vanilla control, concrete-file Previous/Next queue, F7/F8/F9 command integration, reload recovery, contextual selection, and final diagnostics are implemented. Common tests, both loader builds, and both dev-client startup smoke checks passed. Manual in-game audio and HUD checks remain for final acceptance.
 
 ## Goal and scope
 

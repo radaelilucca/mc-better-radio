@@ -1,6 +1,6 @@
 # Better Radio — PRD do MVP
 
-**Status:** Fases 0–5 concluídas: inventário/flatten, playback fixed-file, fila por arquivo e integração dos comandos Next/Previous/Pause nos dois loaders implementados. Testes comuns, build/JAR Forge e compilações/smoke dos dois clientes passaram. Reload/robustez, bias e fechamento de compatibilidade seguem; validação audível/visual em jogo permanece para o usuário.
+**Status:** Implementação das fases 0–8 concluída nos dois loaders. Testes comuns, builds/JARs Forge e NeoForge e smoke de inicialização dos clientes passaram. A validação final de áudio e HUD em jogo permanece para o usuário.
 **Plataformas:** Minecraft 1.20.1 (Forge) e Minecraft 1.21.1 (NeoForge).
 **Arquitetura:** [minecraft-music-hotkey-architecture.md](minecraft-music-hotkey-architecture.md)
 
@@ -159,6 +159,8 @@ As fases abaixo descrevem o pivot inteiro. A existência anterior de keybind, to
 
 ### Fase 6 — Bias contextual, reload e robustez
 
+**Estado:** Implementado: novos sorteios dão peso 3:1 a faixas associadas ao bioma atual, sem retirar o pool global; evitam repetir a faixa ativa quando há alternativa; Next/Previous ignoram entradas removidas após reload. Os dois adapters invalidam snapshots em resource reload e descartam com segurança a instância ativa se o canal já não a reconhece. Testes determinísticos cobrem bias, fallback, não repetição e fila com entradas removidas; builds atuais dos dois loaders passaram.
+
 **Trabalho:** adicionar preferência suave por afiliação do bioma/situação atual em novos sorteios, mantendo fallback no pool todo; definir comportamento de entradas removidas e novas após resource reload; tratar pools vazias e assets inválidos.
 
 **Testes/validação:** seleção determinística com seed confirma preferência em amostra controlada, fallback sem correspondência, nenhuma exclusão global e ausência de repetição imediata quando há alternativa; testes de reload e evento faltante; validação manual com vanilla e conteúdo de mod/datapack.
@@ -167,6 +169,8 @@ As fases abaixo descrevem o pivot inteiro. A existência anterior de keybind, to
 
 ### Fase 7 — Toast e diagnósticos de uso real
 
+**Estado:** Implementado: labels do toast compartilham chaves localizadas, mudanças reais de estado durante uma ação atualizam o texto/temporizador, e o fade continua nos últimos 500 ms do período de dois segundos. Logs formatam de modo estável o arquivo, fontes e biomas; testes verificam traduções e formatação. O smoke de inicialização dos dois clientes passou; inspeção visual do HUD segue na validação manual.
+
 **Trabalho:** reaproveitar/ajustar toast existente e logs. Toast `Previous`, `Next`, `Paused`, `Playing`, `Muted`; fade e expiração em dois segundos, só reaparece para nova ação ou mudança de estado. Logs distinguem arquivo pedido, arquivo resolvido/ativo, afiliação, fila e resultado.
 
 **Testes/validação:** unit tests da máquina temporal do toast, prioridade do mute e não reexibição após expiração; testes de formatação e evento de playback logging; inspeção de log em cada loader. Validação visual no HUD.
@@ -174,6 +178,8 @@ As fases abaixo descrevem o pivot inteiro. A existência anterior de keybind, to
 **Aceite:** feedback nunca apresenta SoundEvent/path como nome amigável, não renova todo frame e logs permitem comparar inequivocamente arquivo ouvido com estado reportado.
 
 ### Fase 8 — Compatibilidade e entrega do MVP
+
+**Estado:** Revisão de compatibilidade, documentação pública, metadados e conteúdo de JAR concluída; `:common:test`, `:forge:build`, `:neoforge:build` e smoke de inicialização dos dois clientes passaram. O aceite manual de som e HUD em jogo continua pendente.
 
 **Trabalho:** revisar isolamento client-side, resource reload, configurações, keybinds, idioma, metadados, instruções públicas e documentação técnica; remover/desativar caminhos antigos de `MusicManager` que conflitem com o player.
 
@@ -187,4 +193,4 @@ O MVP estará pronto quando todas as fases 0–8 forem implementadas e verificad
 
 ## 9. Estado atual e migração
 
-O projeto já contém uma primeira implementação com keybinds, histórico, pausa, toast e integração de som baseada no `MusicManager`. Essa implementação é baseline e fonte de componentes reaproveitáveis. O pivot já tem inventário, identidade concreta, flatten, fixed-file playback/control, fila e comandos conectados; reload, bias, feedback final e compatibilidade global seguem pelas fases restantes. Fases 0–5 estão concluídas; as demais seguem pendentes até seus próprios testes e builds passarem.
+O projeto começou com keybinds, histórico, pausa, toast e integração pelo `MusicManager`. O pivot substitui a seleção de gameplay por catálogo de arquivos concretos, fila por sessão e playback próprio, preservando menu e jukebox física. Todas as fases de implementação 0–8 estão concluídas e os checks automatizados/builds passaram; o usuário ainda precisa validar áudio, jukebox e apresentação do HUD durante jogo real.
