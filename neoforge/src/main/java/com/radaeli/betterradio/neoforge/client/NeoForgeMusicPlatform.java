@@ -49,7 +49,15 @@ final class NeoForgeMusicPlatform implements MusicPlatform {
 
     @Override
     public Optional<MusicTrack> currentTrack() {
-        if (activeSound == null || activeTrack == null || !minecraft.getSoundManager().isActive(activeSound)) {
+        if (activeSound == null || activeTrack == null) {
+            return Optional.empty();
+        }
+        if (!minecraft.getSoundManager().isActive(activeSound)) {
+            activeSound = null;
+            activeTrack = null;
+            pausedByUser = false;
+            suspendedForVanillaScreen = false;
+            MusicClientNeoForge.clearPlaybackToast();
             return Optional.empty();
         }
         return Optional.of(activeTrack);

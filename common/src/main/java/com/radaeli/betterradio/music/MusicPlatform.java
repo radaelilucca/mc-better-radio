@@ -7,6 +7,11 @@ import java.util.Optional;
 public interface MusicPlatform {
     List<MusicTrack> eligibleTracks();
 
+    /** Namespaced biome id used only to bias newly randomized selections. */
+    default Optional<String> currentBiomeId() {
+        return Optional.empty();
+    }
+
     Optional<MusicTrack> currentTrack();
 
     void stopCurrentTrack();

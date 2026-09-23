@@ -167,6 +167,42 @@ public class MusicControllerTest {
     }
 
     @Test
+    public void previousSkipsQueueEntriesRemovedByResourceReload() {
+        MusicHistory history = new MusicHistory();
+        history.record(A);
+        history.record(B);
+        history.record(C);
+        TestPlatform platform = new TestPlatform(List.of(A, C), Optional.of(C));
+        MusicController controller = controller(history);
+
+        assertEquals(A, controller.playPrevious(platform).orElseThrow());
+        assertEquals(List.of(A), platform.startedTracks);
+        assertEquals(0, history.position());
+    }
+
+    @Test
+    public void randomSelectionAfterRemovedFutureSkipsCurrentAndUsesFreshPool() {
+        MusicTrack trackD = new MusicTrack("example:music/river/night");
+        MusicHistory history = new MusicHistory();
+        history.record(A);
+        history.record(B);
+        history.record(C);
+        history.previousTrack();
+        history.previousTrack();
+        TestPlatform platform = new TestPlatform(List.of(A, trackD), Optional.of(A));
+        MusicSelector selector = new MusicSelector(new Random(0) {
+            @Override
+            public int nextInt(int bound) {
+                return 0;
+            }
+        });
+        MusicController controller = new MusicController(selector, history);
+
+        assertEquals(trackD, controller.playNext(platform).orElseThrow());
+        assertEquals(List.of(A, B, C, trackD), history.tracks());
+    }
+
+    @Test
     public void pauseHotkeyDoesNothingWithoutAnActiveTrack() {
         TestPlatform platform = new TestPlatform(List.of(A), Optional.empty());
 

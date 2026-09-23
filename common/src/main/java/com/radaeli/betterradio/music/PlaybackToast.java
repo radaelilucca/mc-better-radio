@@ -4,7 +4,23 @@ import java.util.Objects;
 
 /** Tracks playback state and action messages for a short, non-refreshing toast. */
 public final class PlaybackToast {
-    public enum State { PREVIOUS, NEXT, PLAYING, PAUSED, MUTED }
+    public enum State {
+        PREVIOUS("better_radio.status.previous"),
+        NEXT("better_radio.status.next"),
+        PLAYING("better_radio.status.playing"),
+        PAUSED("better_radio.status.paused"),
+        MUTED("better_radio.status.muted");
+
+        private final String translationKey;
+
+        State(String translationKey) {
+            this.translationKey = translationKey;
+        }
+
+        public String translationKey() {
+            return translationKey;
+        }
+    }
 
     private static final long DISPLAY_MILLIS = 2_000L;
     private static final long FADE_MILLIS = 500L;
@@ -25,8 +41,14 @@ public final class PlaybackToast {
         observedState = newState;
         trackId = newTrackId;
         paused = newPaused;
-        if (nowMillis < actionUntilMillis || !changed) {
+        if (!changed) {
             return false;
+        }
+        if (nowMillis < actionUntilMillis) {
+            state = newState;
+            expiresAtMillis = nowMillis + DISPLAY_MILLIS;
+            actionUntilMillis = expiresAtMillis;
+            return true;
         }
         state = newState;
         expiresAtMillis = nowMillis + DISPLAY_MILLIS;

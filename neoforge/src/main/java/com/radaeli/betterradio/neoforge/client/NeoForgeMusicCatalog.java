@@ -7,6 +7,7 @@ import com.radaeli.betterradio.music.SoundDefinitionEntry;
 import com.radaeli.betterradio.music.SoundDefinitionFlattener;
 import com.radaeli.betterradio.neoforge.client.mixin.WeighedSoundEventsAccessor;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.resources.sounds.Sound;
 import net.minecraft.client.sounds.SoundManager;
 import net.minecraft.client.sounds.WeighedSoundEvents;
@@ -25,9 +26,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.lang.ref.WeakReference;
 
 /** Builds the NeoForge-side inventory from registries and loaded sound definitions. */
 final class NeoForgeMusicCatalog {
+    private static final long CACHE_TTL_NANOS = 5_000_000_000L;
+    private static WeakReference<ClientLevel> registryLevel = new WeakReference<>(null);
+    private static Snapshot cachedSnapshot;
+    private static long cachedAtNanos;
+
     private NeoForgeMusicCatalog() {
     }
 
@@ -35,7 +42,12 @@ final class NeoForgeMusicCatalog {
         NeoForgeMusicSources.observeSituationalMusic(music);
     }
 
-    static Snapshot collect(Minecraft minecraft) {
+    static synchronized Snapshot collect(Minecraft minecraft) {
+        if (minecraft.level != null && registryLevel.get() == minecraft.level && cachedSnapshot != null
+                && System.nanoTime() - cachedAtNanos < CACHE_TTL_NANOS) {
+            return cachedSnapshot;
+        }
+
         MusicCatalog catalog = new MusicCatalog();
         Map<String, Sound> fileEntries = new LinkedHashMap<>();
         SoundManager soundManager = minecraft.getSoundManager();
@@ -52,7 +64,16 @@ final class NeoForgeMusicCatalog {
                 }
             }
         }
-        return new Snapshot(catalog.tracks().stream().toList(), Map.copyOf(fileEntries));
+        cachedSnapshot = new Snapshot(catalog.tracks().stream().toList(), Map.copyOf(fileEntries));
+        registryLevel = new WeakReference<>(minecraft.level);
+        cachedAtNanos = System.nanoTime();
+        return cachedSnapshot;
+    }
+
+    static synchronized void invalidate() {
+        registryLevel.clear();
+        cachedSnapshot = null;
+        cachedAtNanos = 0L;
     }
 
     /** Walks weighted sound entries and nested event references, then delegates cycle/dedupe to common. */

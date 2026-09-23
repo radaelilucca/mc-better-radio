@@ -9,15 +9,20 @@ import com.radaeli.betterradio.music.MusicPlatform;
 import com.radaeli.betterradio.music.PlaybackToast;
 import com.radaeli.betterradio.music.MusicSelector;
 import com.radaeli.betterradio.music.MusicTrack;
+import com.radaeli.betterradio.music.MusicTrackDiagnostics;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
+import net.minecraft.server.packs.resources.ResourceManager;
+import net.minecraft.server.packs.resources.SimplePreparableReloadListener;
 import net.minecraft.sounds.SoundSource;
+import net.minecraft.util.profiling.ProfilerFiller;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
+import net.neoforged.neoforge.client.event.RegisterClientReloadListenersEvent;
 import net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent;
 import net.neoforged.neoforge.client.event.RenderGuiEvent;
 import org.lwjgl.glfw.GLFW;
@@ -59,6 +64,22 @@ public final class MusicClientNeoForge {
         LOGGER.info("Registered Previous (F7), Play/Next (F8), and Pause/Resume (F9) keybinds on NeoForge");
     }
 
+    @SubscribeEvent
+    public static void registerResourceReloadListener(RegisterClientReloadListenersEvent event) {
+        event.registerReloadListener(new SimplePreparableReloadListener<Void>() {
+            @Override
+            protected Void prepare(ResourceManager resourceManager, ProfilerFiller profiler) {
+                return null;
+            }
+
+            @Override
+            protected void apply(Void ignored, ResourceManager resourceManager, ProfilerFiller profiler) {
+                NeoForgeMusicCatalog.invalidate();
+                LOGGER.debug("Invalidated Better Radio's loaded music catalog after resource reload");
+            }
+        });
+    }
+
     public static final class ClientEvents {
         private ClientEvents() {
         }
@@ -97,13 +118,7 @@ public final class MusicClientNeoForge {
             if (!PLAYBACK_TOAST.isVisible(now)) {
                 return;
             }
-            String text = Component.translatable(switch (PLAYBACK_TOAST.state()) {
-                case PREVIOUS -> "better_radio.status.previous";
-                case NEXT -> "better_radio.status.next";
-                case PLAYING -> "better_radio.status.playing";
-                case PAUSED -> "better_radio.status.paused";
-                case MUTED -> "better_radio.status.muted";
-            }).getString();
+            String text = Component.translatable(PLAYBACK_TOAST.state().translationKey()).getString();
             event.getGuiGraphics().drawCenteredString(minecraft.font, text,
                     minecraft.getWindow().getGuiScaledWidth() / 2,
                     minecraft.getWindow().getGuiScaledHeight() - 48,
@@ -223,6 +238,10 @@ public final class MusicClientNeoForge {
         return paused ? PlaybackToast.State.PAUSED : PlaybackToast.State.PLAYING;
     }
 
+    static void clearPlaybackToast() {
+        PLAYBACK_TOAST.clear();
+    }
+
     private static void showAction(Minecraft minecraft, PlaybackToast.State action,
                                    MusicTrack track, boolean paused) {
         PLAYBACK_TOAST.showAction(action, currentState(minecraft, paused), track.id(), paused,
@@ -230,12 +249,12 @@ public final class MusicClientNeoForge {
     }
 
     private static String describeTrack(Optional<MusicTrack> track) {
-        return track.map(MusicTrack::id).orElse("none");
+        return track.map(MusicTrackDiagnostics::describe).orElse("none");
     }
 
     private static String describeHistory(MusicHistory history) {
         return "cursor=" + history.position() + ", tracks="
-                + history.tracks().stream().map(MusicTrack::id).toList();
+                + history.tracks().stream().map(MusicTrackDiagnostics::describe).toList();
     }
 
     private static String describeResolvedSound(Minecraft minecraft) {

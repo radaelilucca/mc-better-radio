@@ -10,6 +10,7 @@ import com.radaeli.betterradio.music.MusicPlatform;
 import com.radaeli.betterradio.music.PlaybackToast;
 import com.radaeli.betterradio.music.MusicSelector;
 import com.radaeli.betterradio.music.MusicTrack;
+import com.radaeli.betterradio.music.MusicTrackDiagnostics;
 import com.radaeli.betterradio.forge.client.ForgeMusicCatalog;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
@@ -20,11 +21,16 @@ import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.sounds.SoundManager;
 import net.minecraft.client.sounds.WeighedSoundEvents;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.packs.resources.ResourceManager;
+import net.minecraft.server.packs.resources.SimplePreparableReloadListener;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.RandomSource;
+import net.minecraft.util.profiling.ProfilerFiller;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.client.event.RegisterKeyMappingsEvent;
+import net.minecraftforge.client.event.RegisterClientReloadListenersEvent;
 import net.minecraftforge.client.event.RenderGuiOverlayEvent;
 import net.minecraftforge.client.gui.overlay.VanillaGuiOverlay;
 import net.minecraftforge.event.TickEvent;
@@ -78,6 +84,24 @@ public final class MusicClientForge {
         LOGGER.info("Registered Previous (F7), Play/Next (F8), and Pause/Resume (F9) keybinds and Forge client tick handler");
     }
 
+    @SubscribeEvent
+    public static void registerResourceReloadListener(RegisterClientReloadListenersEvent event) {
+        event.registerReloadListener(new SimplePreparableReloadListener<Void>() {
+            @Override
+            protected Void prepare(ResourceManager resourceManager, ProfilerFiller profiler) {
+                return null;
+            }
+
+            @Override
+            protected void apply(Void ignored, ResourceManager resourceManager, ProfilerFiller profiler) {
+                cachedCatalog = null;
+                registryLevel.clear();
+                cachedMusicAtMillis = 0L;
+                LOGGER.debug("Invalidated Better Radio's loaded music catalog after resource reload");
+            }
+        });
+    }
+
     public static final class ClientEvents {
         private ClientEvents() {
         }
@@ -122,13 +146,7 @@ public final class MusicClientForge {
             if (!PLAYBACK_TOAST.isVisible(now)) {
                 return;
             }
-            String text = Component.translatable(switch (PLAYBACK_TOAST.state()) {
-                case PREVIOUS -> "better_radio.status.previous";
-                case NEXT -> "better_radio.status.next";
-                case PLAYING -> "better_radio.status.playing";
-                case PAUSED -> "better_radio.status.paused";
-                case MUTED -> "better_radio.status.muted";
-            }).getString();
+            String text = Component.translatable(PLAYBACK_TOAST.state().translationKey()).getString();
             event.getGuiGraphics().drawCenteredString(minecraft.font, text,
                     event.getWindow().getGuiScaledWidth() / 2, event.getWindow().getGuiScaledHeight() - 48,
                     (PLAYBACK_TOAST.alpha(now) << 24) | 0xFFFFFF);
@@ -258,12 +276,12 @@ public final class MusicClientForge {
     }
 
     private static String describeTrack(Optional<MusicTrack> track) {
-        return track.map(MusicTrack::id).orElse("none");
+        return track.map(MusicTrackDiagnostics::describe).orElse("none");
     }
 
     private static String describeHistory(MusicHistory history) {
         return "cursor=" + history.position() + ", tracks="
-                + history.tracks().stream().map(MusicTrack::id).toList();
+                + history.tracks().stream().map(MusicTrackDiagnostics::describe).toList();
     }
 
     private static String describeResolvedSound(Minecraft minecraft) {
@@ -309,11 +327,22 @@ public final class MusicClientForge {
         }
 
         @Override
+        public Optional<String> currentBiomeId() {
+            if (minecraft.level == null || minecraft.player == null) {
+                return Optional.empty();
+            }
+            return minecraft.level.getBiome(minecraft.player.blockPosition()).unwrapKey()
+                    .map(ResourceKey::location).map(ResourceLocation::toString);
+        }
+
+        @Override
         public Optional<MusicTrack> currentTrack() {
-            if (ownedSound != null && !ownedPaused && !minecraft.getSoundManager().isActive(ownedSound)) {
+            if (ownedSound != null && !minecraft.getSoundManager().isActive(ownedSound)) {
                 ownedSound = null;
                 ownedTrack = null;
+                ownedPaused = false;
                 suspendedForVanillaScreen = false;
+                PLAYBACK_TOAST.clear();
             }
             if (ownedSound == null || ownedTrack == null) return Optional.empty();
             Sound sound = ownedSound.getSound();

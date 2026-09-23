@@ -17,13 +17,30 @@ public final class MusicController {
 
     /** Selects and records the next track; adapters remain responsible for audio playback. */
     public Optional<MusicTrack> next(List<MusicTrack> eligibleTracks) {
-        Optional<MusicTrack> queued = history.nextTrack();
+        return selectNext(eligibleTracks, Optional.empty());
+    }
+
+    private Optional<MusicTrack> selectNext(List<MusicTrack> eligibleTracks, Optional<String> currentBiomeId) {
+        return selectNext(eligibleTracks, currentBiomeId, Optional.empty());
+    }
+
+    private Optional<MusicTrack> selectNext(List<MusicTrack> eligibleTracks, Optional<String> currentBiomeId,
+                                            Optional<MusicTrack> currentlyPlaying) {
+        Optional<MusicTrack> queued = nextEligibleQueuedTrack(eligibleTracks);
         if (queued.isPresent()) {
             return queued;
         }
-        Optional<MusicTrack> selected = selector.selectNext(eligibleTracks, history);
+        Optional<MusicTrack> selected = selector.selectNext(eligibleTracks, history, currentBiomeId, currentlyPlaying);
         selected.ifPresent(history::record);
         return selected;
+    }
+
+    private Optional<MusicTrack> nextEligibleQueuedTrack(List<MusicTrack> eligibleTracks) {
+        Optional<MusicTrack> queued;
+        do {
+            queued = history.nextTrack();
+        } while (queued.isPresent() && !eligibleTracks.contains(queued.get()));
+        return queued;
     }
 
     /**
@@ -31,15 +48,14 @@ public final class MusicController {
      * controller (for example by vanilla) as the previous track.
      */
     public Optional<MusicTrack> next(List<MusicTrack> eligibleTracks, Optional<MusicTrack> currentlyPlaying) {
-        Objects.requireNonNull(currentlyPlaying, "currentlyPlaying").ifPresent(history::record);
-        return next(eligibleTracks);
+        return next(eligibleTracks, currentlyPlaying, Optional.empty());
     }
 
     /** Plays the selected next track through a loader-specific platform adapter. */
     public Optional<MusicTrack> playNext(MusicPlatform platform) {
         Objects.requireNonNull(platform, "platform");
         Optional<MusicTrack> current = platform.currentTrack();
-        Optional<MusicTrack> selected = next(platform.eligibleTracks(), current);
+        Optional<MusicTrack> selected = next(platform.eligibleTracks(), current, platform.currentBiomeId());
         if (selected.isEmpty()) {
             return Optional.empty();
         }
@@ -50,12 +66,22 @@ public final class MusicController {
         return selected;
     }
 
+    private Optional<MusicTrack> next(List<MusicTrack> eligibleTracks, Optional<MusicTrack> currentlyPlaying,
+                                      Optional<String> currentBiomeId) {
+        Objects.requireNonNull(currentlyPlaying, "currentlyPlaying").ifPresent(history::record);
+        return selectNext(eligibleTracks, currentBiomeId, currentlyPlaying);
+    }
+
     /** Replays the previous visited track and moves the queue cursor back one position. */
     public Optional<MusicTrack> playPrevious(MusicPlatform platform) {
         Objects.requireNonNull(platform, "platform");
         Optional<MusicTrack> current = platform.currentTrack();
         current.ifPresent(history::record);
-        Optional<MusicTrack> previous = history.previousTrack();
+        List<MusicTrack> eligibleTracks = platform.eligibleTracks();
+        Optional<MusicTrack> previous;
+        do {
+            previous = history.previousTrack();
+        } while (previous.isPresent() && !eligibleTracks.contains(previous.get()));
         if (previous.isEmpty()) {
             return Optional.empty();
         }
