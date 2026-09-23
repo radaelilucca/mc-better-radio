@@ -2,8 +2,11 @@
   "modmenu.nameTranslation.better_radio": "Better Radio",
   "key.categories.better_radio": "Better Radio",
   "key.better_radio.play_next": "Play/Next Music",
+  "key.better_radio.play_previous": "Play Previous Music",
   "key.better_radio.toggle_pause": "Pause/Resume Music",
-  "better_radio.status.playing": "Music playing",
+  "better_radio.status.previous": "Previous",
+  "better_radio.status.next": "Next",
+  "better_radio.status.playing": "Playing",
   "better_radio.status.paused": "Paused",
   "better_radio.status.muted": "Muted"
 }

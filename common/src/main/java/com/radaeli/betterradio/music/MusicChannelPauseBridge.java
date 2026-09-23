@@ -3,6 +3,7 @@ package com.radaeli.betterradio.music;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Consumer;
 
 /** Pauses the SoundEngine channel belonging to MusicManager's current sound instance. */
@@ -41,6 +42,24 @@ public final class MusicChannelPauseBridge {
             return true;
         } catch (ReflectiveOperationException | PauseBridgeException exception) {
             return false;
+        }
+    }
+
+    /** Returns the resolved audio asset for MusicManager's current event, when available. */
+    public static Optional<String> currentSoundPath(Object musicManager) {
+        try {
+            Object soundInstance = field(musicManager.getClass(), "currentMusic").get(musicManager);
+            if (soundInstance == null) {
+                return Optional.empty();
+            }
+            Object sound = method(soundInstance.getClass(), "getSound").invoke(soundInstance);
+            if (sound == null) {
+                return Optional.empty();
+            }
+            Object path = method(sound.getClass(), "getPath").invoke(sound);
+            return Optional.ofNullable(path).map(Object::toString);
+        } catch (ReflectiveOperationException exception) {
+            return Optional.empty();
         }
     }
 

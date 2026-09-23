@@ -17,6 +17,10 @@ public final class MusicController {
 
     /** Selects and records the next track; adapters remain responsible for audio playback. */
     public Optional<MusicTrack> next(List<MusicTrack> eligibleTracks) {
+        Optional<MusicTrack> queued = history.nextTrack();
+        if (queued.isPresent()) {
+            return queued;
+        }
         Optional<MusicTrack> selected = selector.selectNext(eligibleTracks, history);
         selected.ifPresent(history::record);
         return selected;
@@ -46,6 +50,22 @@ public final class MusicController {
         return selected;
     }
 
+    /** Replays the previous visited track and moves the queue cursor back one position. */
+    public Optional<MusicTrack> playPrevious(MusicPlatform platform) {
+        Objects.requireNonNull(platform, "platform");
+        Optional<MusicTrack> current = platform.currentTrack();
+        current.ifPresent(history::record);
+        Optional<MusicTrack> previous = history.previousTrack();
+        if (previous.isEmpty()) {
+            return Optional.empty();
+        }
+
+        current.ifPresent(ignored -> platform.stopCurrentTrack());
+        pausedTrackId = null;
+        platform.startTrack(previous.get());
+        return previous;
+    }
+
     /** Toggles a single music-manager channel while preserving its playback position. */
     public boolean togglePause(MusicPlatform platform) {
         Objects.requireNonNull(platform, "platform");
@@ -56,6 +76,7 @@ public final class MusicController {
         }
 
         String currentId = current.get().id();
+        history.record(current.get());
         if (currentId.equals(pausedTrackId)) {
             if (!platform.resumeCurrentTrack()) {
                 return false;

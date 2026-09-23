@@ -74,12 +74,44 @@ public class MusicControllerTest {
     }
 
     @Test
+    public void previousAndNextNavigateTheRecordedPlaybackQueue() {
+        MusicHistory history = new MusicHistory();
+        history.record(A);
+        history.record(B);
+        TestPlatform platform = new TestPlatform(List.of(A, B), Optional.of(B));
+        MusicController controller = controller(history);
+
+        assertEquals(A, controller.playPrevious(platform).orElseThrow());
+        assertEquals(List.of(A), platform.startedTracks);
+        assertEquals(0, history.position());
+        assertEquals(B, controller.playNext(platform).orElseThrow());
+        assertEquals(List.of(A, B), platform.startedTracks);
+        assertEquals(List.of(A, B), history.tracks());
+        assertEquals(1, history.position());
+    }
+
+    @Test
+    public void selectingANewTrackAfterGoingBackBranchesTheQueue() {
+        MusicHistory history = new MusicHistory();
+        history.record(A);
+        history.record(B);
+        history.previousTrack();
+
+        history.record(new MusicTrack("minecraft:music.c"));
+
+        assertEquals(List.of(A, new MusicTrack("minecraft:music.c")), history.tracks());
+        assertEquals(1, history.position());
+    }
+
+    @Test
     public void pauseHotkeyPausesAndResumesTheSameTrack() {
         TestPlatform platform = new TestPlatform(List.of(A, B), Optional.of(A));
-        MusicController controller = controller(new MusicHistory());
+        MusicHistory history = new MusicHistory();
+        MusicController controller = controller(history);
 
         assertTrue(controller.togglePause(platform));
         assertTrue(controller.isPaused(Optional.of(A)));
+        assertEquals(A, history.lastTrack().orElseThrow());
         assertTrue(controller.togglePause(platform));
         assertTrue(!controller.isPaused(Optional.of(A)));
         assertEquals(1, platform.pauseCalls);
@@ -118,7 +150,7 @@ public class MusicControllerTest {
 
     private static final class TestPlatform implements MusicPlatform {
         private final List<MusicTrack> tracks;
-        private final Optional<MusicTrack> current;
+        private Optional<MusicTrack> current;
         private int stopCalls;
         private int pauseCalls;
         private int resumeCalls;
@@ -142,11 +174,13 @@ public class MusicControllerTest {
         @Override
         public void stopCurrentTrack() {
             stopCalls++;
+            current = Optional.empty();
         }
 
         @Override
         public void startTrack(MusicTrack track) {
             startedTracks.add(track);
+            current = Optional.of(track);
         }
 
         @Override
