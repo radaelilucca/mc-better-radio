@@ -3,9 +3,8 @@ package com.radaeli.betterradio;
 /**
  * Loader-neutral identity and shared constants for Better Radio.
  *
- * <p>Loader adapters own version-specific entrypoints and client APIs. The
- * music-control implementation will be added after the loader scaffolding is
- * validated.</p>
+ * <p>Loader adapters own version-specific entrypoints and client APIs. Shared
+ * music selection rules live in this module and remain independent of both.</p>
  */
 public final class BetterRadio {
     public static final String MOD_ID = "better_radio";
