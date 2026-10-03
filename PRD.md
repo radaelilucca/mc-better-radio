@@ -20,7 +20,7 @@ O player usa o canal vanilla `MUSIC` e respeita o controle de volume corresponde
 - **Randomização contextual:** em novos sorteios, é permitido dar preferência suave aos arquivos associados ao bioma/situação atual. A preferência não elimina arquivos de outras origens do pool e deve cair no pool geral quando não houver correspondência.
 - **Fila da sessão:** Previous volta ao arquivo anterior; Next avança pelo futuro já visitado antes de criar uma nova entrada. Um novo sorteio depois de Previous substitui o ramo futuro abandonado. A fila reinicia em troca/saída de mundo e não persiste entre sessões.
 - **Pausa precisa:** Pause/Resume suspende e retoma o arquivo atual na posição em que parou, sem pausar outros sons.
-- **Feedback:** manter o toast curto acima da barra de XP; exibir `Previous`, `Next`, `Paused`, `Playing` ou `Muted`, sem caminho/ID técnico como título. Desaparece com fade após dois segundos e reaparece apenas em nova ação ou mudança de estado.
+- **Feedback:** manter o texto curto acima da barra de XP; exibir `Previous`, `Next`, `Paused`, `Playing` ou `Muted`, sem caminho/ID técnico. Não animar a saída por enquanto. Para música de background, identificar como `Now playing: Background music`; para disco, usar a descrição localizada da faixa quando disponível.
 - **Diagnóstico:** logs devem mostrar ação, arquivo solicitado e efetivamente iniciado, origem/afinidade, posição/tamanho da fila e resultado da operação, permitindo comparar estado com o que foi ouvido.
 - **Equivalência:** oferecer o mesmo comportamento em Forge 1.20.1 e NeoForge 1.21.1, isolando diferenças nos adapters.
 

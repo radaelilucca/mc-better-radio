@@ -21,7 +21,7 @@ Physical jukeboxes remain vanilla. Disc tracks are available as local playlist e
 - **Jukebox coexistence:** keep the vanilla `RECORDS` sound independent and spatial. The owned `MUSIC` background continues underneath as vanilla background music does.
 - **Navigation:** Previous and Next operate on exact files from the session queue. Pause/resume retains the current file and playback position.
 - **Random choice:** all eligible files remain in the pool. A soft preference for files associated with the current biome/situation may influence a new random choice; it must not filter out the rest of the pool.
-- **Feedback:** keep the existing short, localized action/status toast above the XP bar. It fades after two seconds and reappears only for a new action or playback-state change. Use `Previous`, `Next`, `Paused`, `Playing`, or `Muted`; do not expose raw resource paths as track names.
+- **Feedback:** keep the short, localized action/status message above the XP bar. It disappears after two seconds without an exit animation and reappears only for a new action or playback-state change. Use `Previous`, `Next`, `Paused`, `Playing`, or `Muted`; identify background audio generically and use a music disc's localized song description when available.
 - **Diagnostics:** logs must distinguish the requested file, the actual resolved/playing file, its source affiliations, and queue action so observed audio can be compared with internal state.
 
 ## Runtime model

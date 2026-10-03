@@ -15,7 +15,7 @@ Better Radio adds client-side hotkeys for Minecraft's natural background music. 
 - Better Radio can show a short status toast above the experience bar when playback changes. Set `showNowPlaying` to `false` in `config/better_radio-client.toml` to hide it.
 - The toast identifies the action or state: **Previous**, **Next**, **Paused**, **Playing**, or **Muted**.
 
-Natural gameplay background music is eligible, including tracks supplied by mods and datapacks. Music discs are also available for local playback. The toast uses generic status text because Minecraft does not provide a consistent localized title for background music tracks.
+Natural gameplay background music is eligible, including tracks supplied by mods and datapacks. Music discs are also available for local playback. The temporary HUD message identifies background tracks generically and uses a disc's localized song description when one is available.
 
 ## Install
 

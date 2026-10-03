@@ -3,6 +3,8 @@ plugins {
     id 'net.neoforged.moddev'
 }
 
+def rUiLibJar = file('libs/r-ui-lib-neoforge-0.1.0.jar')
+
 base {
     archivesName = "${mod_id}-neoforge"
 }
@@ -19,6 +21,11 @@ sourceSets {
 java {
     toolchain.languageVersion = JavaLanguageVersion.of(neoforge_java_version as int)
     withSourcesJar()
+}
+
+dependencies {
+    compileOnly files(rUiLibJar)
+    runtimeOnly files(rUiLibJar)
 }
 
 neoForge {

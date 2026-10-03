@@ -23,7 +23,6 @@ public final class PlaybackToast {
     }
 
     private static final long DISPLAY_MILLIS = 2_000L;
-    private static final long FADE_MILLIS = 500L;
     private State state;
     private State observedState;
     private String trackId;
@@ -80,18 +79,6 @@ public final class PlaybackToast {
 
     public boolean isVisible(long nowMillis) {
         return state != null && nowMillis < expiresAtMillis;
-    }
-
-    /** Returns the vanilla-style fade alpha for the final half-second of the toast. */
-    public int alpha(long nowMillis) {
-        if (!isVisible(nowMillis)) {
-            return 0;
-        }
-        long remainingMillis = expiresAtMillis - nowMillis;
-        if (remainingMillis >= FADE_MILLIS) {
-            return 255;
-        }
-        return (int) (255L * remainingMillis / FADE_MILLIS);
     }
 
     public State state() {

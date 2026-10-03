@@ -17,6 +17,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.resources.sounds.AbstractSoundInstance;
 import net.minecraft.client.resources.sounds.Sound;
 import net.minecraft.client.resources.sounds.SoundInstance;
+import net.minecraft.locale.Language;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.sounds.SoundManager;
 import net.minecraft.client.sounds.WeighedSoundEvents;
@@ -36,6 +37,7 @@ import net.minecraftforge.client.gui.overlay.VanillaGuiOverlay;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.registries.ForgeRegistries;
 import net.minecraftforge.api.distmarker.Dist;
 import org.lwjgl.glfw.GLFW;
 import org.slf4j.Logger;
@@ -138,7 +140,7 @@ public final class MusicClientForge {
                 return;
             }
             Optional<MusicTrack> current = new ForgeMusicPlatform(minecraft).currentTrack();
-            long now = System.currentTimeMillis();
+            long now = net.minecraft.Util.getMillis();
             if (current.isPresent()) {
                 boolean paused = controller.isPaused(current);
                 PLAYBACK_TOAST.update(currentState(minecraft, paused), current.get().id(), paused, now);
@@ -146,10 +148,11 @@ public final class MusicClientForge {
             if (!PLAYBACK_TOAST.isVisible(now)) {
                 return;
             }
-            String text = Component.translatable(PLAYBACK_TOAST.state().translationKey()).getString();
+            Optional<MusicTrack> labelTrack = current.or(controller.history()::lastTrack);
+            Component text = playbackMessage(PLAYBACK_TOAST.state(), labelTrack);
             event.getGuiGraphics().drawCenteredString(minecraft.font, text,
                     event.getWindow().getGuiScaledWidth() / 2, event.getWindow().getGuiScaledHeight() - 48,
-                    (PLAYBACK_TOAST.alpha(now) << 24) | 0xFFFFFF);
+                    0xFFFFFF);
         }
     }
 
@@ -239,7 +242,40 @@ public final class MusicClientForge {
     private static void showAction(Minecraft minecraft, PlaybackToast.State action,
                                    MusicTrack track, boolean paused) {
         PLAYBACK_TOAST.showAction(action, currentState(minecraft, paused), track.id(), paused,
-                System.currentTimeMillis());
+                net.minecraft.Util.getMillis());
+    }
+
+    private static Component playbackMessage(PlaybackToast.State state, Optional<MusicTrack> track) {
+        if (state == PlaybackToast.State.MUTED) {
+            return Component.translatable(state.translationKey());
+        }
+        Component nowPlaying = Component.translatable("better_radio.now_playing",
+                track.map(MusicClientForge::trackLabel).orElseGet(() ->
+                        Component.translatable("better_radio.track.background")));
+        if (state == PlaybackToast.State.PLAYING) {
+            return nowPlaying;
+        }
+        return Component.translatable(state.translationKey())
+                .append(Component.translatable("better_radio.status.separator"))
+                .append(nowPlaying);
+    }
+
+    private static Component trackLabel(MusicTrack track) {
+        for (String source : track.sourceIds().stream().filter(id -> id.startsWith("record:")).sorted().toList()) {
+            ResourceLocation itemId = ResourceLocation.tryParse(source.substring("record:".length()));
+            if (itemId == null) {
+                continue;
+            }
+            String songDescriptionKey = "item." + itemId.getNamespace() + "." + itemId.getPath() + ".desc";
+            if (Language.getInstance().has(songDescriptionKey)) {
+                return Component.translatable(songDescriptionKey);
+            }
+            var item = ForgeRegistries.ITEMS.getValue(itemId);
+            if (item != null && Language.getInstance().has(item.getDescriptionId())) {
+                return Component.translatable(item.getDescriptionId());
+            }
+        }
+        return Component.translatable("better_radio.track.background");
     }
 
     private static void ensureWorldContext() {

@@ -8,5 +8,8 @@
   "better_radio.status.next": "Next",
   "better_radio.status.playing": "Playing",
   "better_radio.status.paused": "Paused",
-  "better_radio.status.muted": "Muted"
+  "better_radio.status.muted": "Muted",
+  "better_radio.now_playing": "Now playing: %s",
+  "better_radio.track.background": "Background music",
+  "better_radio.status.separator": " — "
 }

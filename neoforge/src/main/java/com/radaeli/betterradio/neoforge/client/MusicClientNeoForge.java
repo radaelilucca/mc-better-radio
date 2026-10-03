@@ -10,13 +10,24 @@ import com.radaeli.betterradio.music.PlaybackToast;
 import com.radaeli.betterradio.music.MusicSelector;
 import com.radaeli.betterradio.music.MusicTrack;
 import com.radaeli.betterradio.music.MusicTrackDiagnostics;
+import com.radaeli.ruilib.ui.Bounds;
+import com.radaeli.ruilib.ui.Toast;
+import com.radaeli.ruilib.ui.ToastHost;
+import com.radaeli.ruilib.ui.UiContext;
+import com.radaeli.ruilib.ui.UiRadii;
+import com.radaeli.ruilib.ui.UiTheme;
+import com.radaeli.ruilib.ui.UiTokens;
+import com.radaeli.ruilib.ui.UiThemes;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.ResourceManager;
 import net.minecraft.server.packs.resources.SimplePreparableReloadListener;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.profiling.ProfilerFiller;
+import net.minecraft.world.item.JukeboxSong;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
@@ -49,6 +60,9 @@ public final class MusicClientNeoForge {
             new java.lang.ref.WeakReference<>(null);
     private static MusicController controller = createController();
     private static final PlaybackToast PLAYBACK_TOAST = new PlaybackToast();
+    private static final ToastHost TOAST_HOST = new ToastHost();
+    private static UiTheme sourceToastTheme;
+    private static UiTheme toastTheme;
     private static boolean tickHandlerVerified;
 
     private MusicClientNeoForge() {
@@ -91,6 +105,8 @@ public final class MusicClientNeoForge {
                 LOGGER.info("NeoForge music hotkey client tick handler is active");
             }
             ensureWorldContext();
+            updatePlaybackToast();
+            TOAST_HOST.tick();
             if (PLAY_PREVIOUS_KEY.consumeClick()) {
                 playPrevious();
             }
@@ -106,24 +122,28 @@ public final class MusicClientNeoForge {
                 return;
             }
             Minecraft minecraft = Minecraft.getInstance();
-            if (minecraft.player == null || minecraft.level == null) {
-                return;
-            }
-            Optional<MusicTrack> current = new NeoForgeMusicPlatform(minecraft).currentTrack();
-            long now = System.currentTimeMillis();
-            if (current.isPresent()) {
-                boolean paused = controller.isPaused(current);
-                PLAYBACK_TOAST.update(currentState(minecraft, paused), current.get().id(), paused, now);
-            }
-            if (!PLAYBACK_TOAST.isVisible(now)) {
-                return;
-            }
-            String text = Component.translatable(PLAYBACK_TOAST.state().translationKey()).getString();
-            event.getGuiGraphics().drawCenteredString(minecraft.font, text,
-                    minecraft.getWindow().getGuiScaledWidth() / 2,
-                    minecraft.getWindow().getGuiScaledHeight() - 48,
-                    (PLAYBACK_TOAST.alpha(now) << 24) | 0xFFFFFF);
+            if (minecraft.player == null || minecraft.font == null || TOAST_HOST.size() == 0) return;
+            int width = minecraft.getWindow().getGuiScaledWidth();
+            int height = minecraft.getWindow().getGuiScaledHeight();
+            var theme = toastTheme();
+            TOAST_HOST.layout(minecraft.font, theme, new Bounds(0, 0, width, height));
+            TOAST_HOST.render(new UiContext(event.getGuiGraphics(), minecraft.font, theme,
+                    minecraft.mouseHandler.xpos(), minecraft.mouseHandler.ypos(), width, height));
         }
+    }
+
+    private static UiTheme toastTheme() {
+        UiTheme current = UiThemes.globalTheme();
+        if (current != sourceToastTheme) {
+            UiTokens tokens = current.tokens();
+            UiTokens squareTokens = new UiTokens(tokens.panelPadding(), tokens.cardPadding(),
+                    tokens.smallGap(), tokens.mediumGap(), tokens.largeGap(), tokens.buttonPadding(),
+                    tokens.buttonMinimumWidth(), tokens.buttonMinimumHeight(), tokens.typography(),
+                    new UiRadii(0, 0, 0, 0), tokens.motion());
+            sourceToastTheme = current;
+            toastTheme = new UiTheme(current.palette(), squareTokens);
+        }
+        return toastTheme;
     }
 
     private static void togglePause() {
@@ -245,7 +265,52 @@ public final class MusicClientNeoForge {
     private static void showAction(Minecraft minecraft, PlaybackToast.State action,
                                    MusicTrack track, boolean paused) {
         PLAYBACK_TOAST.showAction(action, currentState(minecraft, paused), track.id(), paused,
-                System.currentTimeMillis());
+                net.minecraft.Util.getMillis());
+        TOAST_HOST.show(new Toast(playbackMessage(minecraft, action, Optional.of(track)),
+                Toast.Level.INFO, 40));
+    }
+
+    private static void updatePlaybackToast() {
+        if (!MusicConfigNeoForge.SHOW_NOW_PLAYING.get()) return;
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft.player == null || minecraft.level == null) return;
+        Optional<MusicTrack> current = new NeoForgeMusicPlatform(minecraft).currentTrack();
+        if (current.isEmpty()) return;
+        boolean paused = controller.isPaused(current);
+        if (PLAYBACK_TOAST.update(currentState(minecraft, paused), current.get().id(), paused,
+                net.minecraft.Util.getMillis())) {
+            TOAST_HOST.show(new Toast(playbackMessage(minecraft, PLAYBACK_TOAST.state(), current),
+                    Toast.Level.INFO, 40));
+        }
+    }
+
+    private static Component playbackMessage(Minecraft minecraft, PlaybackToast.State state,
+                                             Optional<MusicTrack> track) {
+        if (state == PlaybackToast.State.MUTED) {
+            return Component.translatable(state.translationKey());
+        }
+        Component nowPlaying = Component.translatable("better_radio.now_playing",
+                track.flatMap(value -> trackLabel(minecraft, value)).orElseGet(() ->
+                        Component.translatable("better_radio.track.background")));
+        if (state == PlaybackToast.State.PLAYING) {
+            return nowPlaying;
+        }
+        return Component.translatable(state.translationKey())
+                .append(Component.translatable("better_radio.status.separator"))
+                .append(nowPlaying);
+    }
+
+    private static Optional<Component> trackLabel(Minecraft minecraft, MusicTrack track) {
+        var songs = minecraft.level.registryAccess().registryOrThrow(Registries.JUKEBOX_SONG);
+        return track.sourceIds().stream()
+                .filter(source -> source.startsWith("jukebox:"))
+                .sorted()
+                .map(source -> ResourceLocation.tryParse(source.substring("jukebox:".length())))
+                .filter(java.util.Objects::nonNull)
+                .map(songs::get)
+                .filter(java.util.Objects::nonNull)
+                .map(JukeboxSong::description)
+                .findFirst();
     }
 
     private static String describeTrack(Optional<MusicTrack> track) {

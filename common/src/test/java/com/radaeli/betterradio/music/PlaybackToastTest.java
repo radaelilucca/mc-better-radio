@@ -47,18 +47,6 @@ public class PlaybackToastTest {
     }
 
     @Test
-    public void toastFadesLinearlyDuringItsFinalHalfSecond() {
-        PlaybackToast toast = new PlaybackToast();
-        toast.update(PlaybackToast.State.PLAYING, "track-a", false, 1000L);
-
-        assertEquals(255, toast.alpha(2499L));
-        assertEquals(255, toast.alpha(2500L));
-        assertEquals(127, toast.alpha(2750L));
-        assertEquals(0, toast.alpha(2999L));
-        assertEquals(0, toast.alpha(3000L));
-    }
-
-    @Test
     public void actionMessageSurvivesPassiveRenderUpdatesAndDoesNotRetriggerAfterExpiry() {
         PlaybackToast toast = new PlaybackToast();
         toast.showAction(PlaybackToast.State.NEXT, PlaybackToast.State.PLAYING,
