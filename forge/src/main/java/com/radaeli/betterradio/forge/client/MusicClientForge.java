@@ -26,6 +26,7 @@ import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.ResourceManager;
 import net.minecraft.server.packs.resources.SimplePreparableReloadListener;
+import net.minecraft.sounds.Music;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.RandomSource;
 import net.minecraft.util.profiling.ProfilerFiller;
@@ -52,6 +53,9 @@ import java.util.Optional;
 /** Forge client keybind and adapter for vanilla background music. */
 @Mod.EventBusSubscriber(modid = BetterRadio.MOD_ID, value = Dist.CLIENT, bus = Mod.EventBusSubscriber.Bus.MOD)
 public final class MusicClientForge {
+    private static final int VANILLA_INITIAL_MUSIC_DELAY_TICKS = 100;
+    private static final int AUTOPLAY_RETRY_TICKS = 100;
+    private static final Random AUTOPLAY_RANDOM = new Random();
     private static final Logger LOGGER = LoggerFactory.getLogger(BetterRadio.MOD_ID);
     private static final KeyMapping PLAY_NEXT_KEY = new KeyMapping(
             "key.better_radio.play_next", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_F8,
@@ -73,6 +77,10 @@ public final class MusicClientForge {
     private static MusicTrack ownedTrack;
     private static boolean ownedPaused;
     private static boolean suspendedForVanillaScreen;
+    private static int vanillaMusicMinDelay = 12_000;
+    private static int vanillaMusicMaxDelay = 24_000;
+    private static int autoplayDelayTicks = -1;
+    private static boolean autoplayObservedPlayback;
 
     private MusicClientForge() {
     }
@@ -128,6 +136,7 @@ public final class MusicClientForge {
             if (TOGGLE_PAUSE_KEY.consumeClick()) {
                 togglePause();
             }
+            tickAutoplay();
         }
 
         @SubscribeEvent
@@ -143,7 +152,7 @@ public final class MusicClientForge {
             long now = net.minecraft.Util.getMillis();
             if (current.isPresent()) {
                 boolean paused = controller.isPaused(current);
-                PLAYBACK_TOAST.update(currentState(minecraft, paused), current.get().id(), paused, now);
+                PLAYBACK_TOAST.update(currentState(paused), current.get().id(), paused, now);
             }
             if (!PLAYBACK_TOAST.isVisible(now)) {
                 return;
@@ -232,32 +241,23 @@ public final class MusicClientForge {
         started.ifPresent(track -> showAction(minecraft, PlaybackToast.State.NEXT, track, false));
     }
 
-    private static PlaybackToast.State currentState(Minecraft minecraft, boolean paused) {
-        if (minecraft.options.getSoundSourceVolume(SoundSource.MUSIC) <= 0.0F) {
-            return PlaybackToast.State.MUTED;
-        }
+    private static PlaybackToast.State currentState(boolean paused) {
         return paused ? PlaybackToast.State.PAUSED : PlaybackToast.State.PLAYING;
     }
 
     private static void showAction(Minecraft minecraft, PlaybackToast.State action,
                                    MusicTrack track, boolean paused) {
-        PLAYBACK_TOAST.showAction(action, currentState(minecraft, paused), track.id(), paused,
+        PLAYBACK_TOAST.showAction(action, currentState(paused), track.id(), paused,
                 net.minecraft.Util.getMillis());
     }
 
     private static Component playbackMessage(PlaybackToast.State state, Optional<MusicTrack> track) {
-        if (state == PlaybackToast.State.MUTED) {
-            return Component.translatable(state.translationKey());
+        if (state == PlaybackToast.State.PAUSED) {
+            return Component.translatable(PlaybackToast.State.PAUSED.translationKey());
         }
-        Component nowPlaying = Component.translatable("better_radio.now_playing",
+        return Component.translatable("better_radio.now_playing",
                 track.map(MusicClientForge::trackLabel).orElseGet(() ->
                         Component.translatable("better_radio.track.background")));
-        if (state == PlaybackToast.State.PLAYING) {
-            return nowPlaying;
-        }
-        return Component.translatable(state.translationKey())
-                .append(Component.translatable("better_radio.status.separator"))
-                .append(nowPlaying);
     }
 
     private static Component trackLabel(MusicTrack track) {
@@ -288,6 +288,8 @@ public final class MusicClientForge {
                 activeLevel.clear();
                 controller = createController();
                 PLAYBACK_TOAST.clear();
+                autoplayDelayTicks = -1;
+                autoplayObservedPlayback = false;
             }
             return;
         }
@@ -298,6 +300,8 @@ public final class MusicClientForge {
             activeLevel = new WeakReference<>(minecraft.level);
             controller = createController();
             PLAYBACK_TOAST.clear();
+            autoplayDelayTicks = VANILLA_INITIAL_MUSIC_DELAY_TICKS;
+            autoplayObservedPlayback = false;
         }
         boolean screenOwnsBackground = minecraft.screen != null && minecraft.screen.getBackgroundMusic() != null;
         if (screenOwnsBackground && ownedSound != null && !ownedPaused && !suspendedForVanillaScreen) {
@@ -428,6 +432,56 @@ public final class MusicClientForge {
             ownedPaused = false;
             return true;
         }
+    }
+
+    private static void tickAutoplay() {
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft.player == null || minecraft.level == null
+                || (minecraft.screen != null && minecraft.screen.getBackgroundMusic() != null)) {
+            return;
+        }
+
+        MusicPlatform platform = new ForgeMusicPlatform(minecraft);
+        Optional<MusicTrack> current = platform.currentTrack();
+        if (current.isPresent()) {
+            autoplayObservedPlayback = true;
+            autoplayDelayTicks = -1;
+            return;
+        }
+
+        if (autoplayObservedPlayback) {
+            autoplayObservedPlayback = false;
+            autoplayDelayTicks = nextVanillaMusicDelayTicks();
+        } else if (autoplayDelayTicks < 0) {
+            autoplayDelayTicks = VANILLA_INITIAL_MUSIC_DELAY_TICKS;
+        }
+
+        if (autoplayDelayTicks > 0) {
+            autoplayDelayTicks--;
+            return;
+        }
+
+        Optional<MusicTrack> started = controller.playNext(platform);
+        if (started.isPresent()) {
+            autoplayObservedPlayback = true;
+            autoplayDelayTicks = -1;
+            LOGGER.info("Playback action=AUTO_START selectedTrack={} biome={}",
+                    MusicTrackDiagnostics.describe(started.get()), platform.currentBiomeId().orElse("unknown"));
+        } else {
+            autoplayDelayTicks = AUTOPLAY_RETRY_TICKS;
+            LOGGER.debug("Automatic music playback is waiting for eligible tracks");
+        }
+    }
+
+    /** Retains vanilla's current situational music interval while Better Radio owns gameplay playback. */
+    public static void observeVanillaMusic(Music music) {
+        if (music == null) return;
+        vanillaMusicMinDelay = Math.max(0, music.getMinDelay());
+        vanillaMusicMaxDelay = Math.max(vanillaMusicMinDelay, music.getMaxDelay());
+    }
+
+    private static int nextVanillaMusicDelayTicks() {
+        return AUTOPLAY_RANDOM.nextInt(vanillaMusicMinDelay, vanillaMusicMaxDelay + 1);
     }
 
     private static void stopOwnedPlayback(Minecraft minecraft) {

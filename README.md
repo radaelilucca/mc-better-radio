@@ -1,22 +1,29 @@
 # Better Radio
 
-Better Radio adds client-side hotkeys for Minecraft's natural background music. It supports Minecraft 1.20.1 with Forge and Minecraft 1.21.1 with NeoForge. The server does not need the mod.
+### Your world has a soundtrack. Make it yours.
 
-## Use
+From quiet mornings in the Overworld to long nights underground, Better Radio keeps the music going. Let Minecraft set the mood, then jump in whenever you want to hear something different.
 
-- **Play/Next Music** starts a random background track or advances to another one. Default: **F8**.
-- **Play Previous Music** returns to the previous track in the current session's playback history. Default: **F7**.
-- **Pause/Resume Music** pauses the current track and resumes it from the same position. Default: **F9**.
-- Background music and music discs are available to the local player. Disc playback here does not control physical jukeboxes.
-- Pressing Play/Next after going back moves forward through tracks already in the history; at the end, it chooses a new track.
-- Playback history lasts for the current world session and resets when leaving the world.
-- All three keys can be changed in **Options → Controls → Key Binds → Better Radio**.
-- Playback uses Minecraft's **Music** volume slider. Jukeboxes and other game sounds are unaffected.
-- Better Radio can show a short status toast above the experience bar when playback changes. Set `showNowPlaying` to `false` in `config/better_radio-client.toml` to hide it.
-- The toast identifies the action or state: **Previous**, **Next**, **Paused**, **Playing**, or **Muted**.
+## Make it your soundtrack
 
-Natural gameplay background music is eligible, including tracks supplied by mods and datapacks. Music discs are also available for local playback. The temporary HUD message identifies background tracks generically and uses a disc's localized song description when one is available.
+- **Let the music find you.** Background music starts on its own as you play, with a soft preference for songs that fit the biome around you.
+- **Bring your favorite discs along.** Play them whenever you like, without changing the music in nearby jukeboxes.
+- **Take the DJ seat.** Skip ahead, revisit a song, or pause and pick up right where you left off.
+- **Keep playing.** Your music stays on Minecraft’s Music volume, separate from jukeboxes and other sounds.
 
-## Install
+## Your controls
 
-Choose the JAR matching both your loader and Minecraft version, then place it in the instance's `mods` folder.
+| What you want to do | Key |
+| --- | --- |
+| Play something else | **F8** |
+| Hear the previous song | **F7** |
+| Pause or resume | **F9** |
+
+Make the keys your own in **Options → Controls → Key Binds → Better Radio**. A small toast lets you know what’s playing or when playback is paused.
+
+## Compatibility
+
+- **Minecraft 1.20.1** — Forge
+- **Minecraft 1.21.1** — NeoForge
+
+Better Radio runs on your client, so your server does not need it. Install the file matching your Minecraft version and loader.

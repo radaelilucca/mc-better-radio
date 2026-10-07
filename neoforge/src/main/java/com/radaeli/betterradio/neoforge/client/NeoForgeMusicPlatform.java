@@ -12,6 +12,7 @@ import net.minecraft.client.sounds.WeighedSoundEvents;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.sounds.SoundSource;
+import net.minecraft.sounds.Music;
 import net.minecraft.util.RandomSource;
 import net.neoforged.bus.api.EventPriority;
 import net.neoforged.bus.api.SubscribeEvent;
@@ -21,6 +22,8 @@ import java.util.Optional;
 
 /** Adapter that plays a retained concrete Sound file as local gameplay background music. */
 final class NeoForgeMusicPlatform implements MusicPlatform {
+    private static int vanillaMusicMinDelay = 12_000;
+    private static int vanillaMusicMaxDelay = 24_000;
     private static final String EVENT_SOURCE_PREFIX = "event:";
     private static FixedFileSound activeSound;
     private static MusicTrack activeTrack;
@@ -155,11 +158,22 @@ final class NeoForgeMusicPlatform implements MusicPlatform {
             if (minecraft.screen != null && minecraft.screen.getBackgroundMusic() != null) {
                 return;
             }
+            observeVanillaMusic(event.getMusic());
             if (event.getMusic() != null) {
                 NeoForgeMusicCatalog.observeSituationalMusic(event.getMusic());
             }
             event.setMusic(null);
         }
+    }
+
+    private static void observeVanillaMusic(Music music) {
+        if (music == null) return;
+        vanillaMusicMinDelay = Math.max(0, music.getMinDelay());
+        vanillaMusicMaxDelay = Math.max(vanillaMusicMinDelay, music.getMaxDelay());
+    }
+
+    static int nextVanillaMusicDelayTicks() {
+        return RandomSource.create().nextInt(vanillaMusicMinDelay, vanillaMusicMaxDelay + 1);
     }
 
     /**

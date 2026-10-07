@@ -3,6 +3,8 @@ package com.radaeli.betterradio.forge.mixin.client;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.resources.sounds.SoundInstance;
 import net.minecraft.client.sounds.MusicManager;
+import net.minecraft.sounds.Music;
+import com.radaeli.betterradio.forge.client.MusicClientForge;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -23,6 +25,8 @@ abstract class MusicManagerMixin {
                 || (minecraft.screen != null && minecraft.screen.getBackgroundMusic() != null)) {
             return;
         }
+
+        MusicClientForge.observeVanillaMusic(minecraft.getSituationalMusic());
 
         // stopPlaying adds to nextSongDelay; do not call it once the field is clear.
         if (currentMusic != null) {
