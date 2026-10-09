@@ -6,3 +6,6 @@ build/
 *.iml
 .idea/
 .vscode/*.log
+# Version only the R-UI dependency currently used by this checkout.
+/neoforge/libs/r-ui-lib-neoforge-*.jar
+!/neoforge/libs/r-ui-lib-neoforge-0.4.0.jar

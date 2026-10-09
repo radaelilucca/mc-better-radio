@@ -11,6 +11,7 @@ import com.radaeli.betterradio.music.PlaybackToast;
 import com.radaeli.betterradio.music.MusicSelector;
 import com.radaeli.betterradio.music.MusicTrack;
 import com.radaeli.betterradio.music.MusicTrackDiagnostics;
+import com.radaeli.betterradio.music.MusicTrackNames;
 import com.radaeli.betterradio.forge.client.ForgeMusicCatalog;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
@@ -275,7 +276,7 @@ public final class MusicClientForge {
                 return Component.translatable(item.getDescriptionId());
             }
         }
-        return Component.translatable("better_radio.track.background");
+        return Component.translatable("better_radio.track.background_named", MusicTrackNames.backgroundTitle(track));
     }
 
     private static void ensureWorldContext() {

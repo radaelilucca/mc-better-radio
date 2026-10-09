@@ -49,9 +49,13 @@ jobs:
         run: |
           set -euo pipefail
           version="${RELEASE_TAG#v}"
+          forge_minecraft_version="$(sed -n 's/^forge_minecraft_version=//p' gradle.properties)"
+          neoforge_minecraft_version="$(sed -n 's/^neoforge_minecraft_version=//p' gradle.properties)"
+          test -n "$forge_minecraft_version"
+          test -n "$neoforge_minecraft_version"
           mkdir -p release-artifacts
-          cp "forge/build/libs/better_radio-forge-${version}.jar" "release-artifacts/better-radio-${version}-forge.jar"
-          cp "neoforge/build/libs/better_radio-neoforge-${version}.jar" "release-artifacts/better-radio-${version}-neoforge.jar"
+          cp "forge/build/libs/better_radio-forge-${version}+${forge_minecraft_version}.jar" "release-artifacts/better-radio-${version}-forge-${forge_minecraft_version}.jar"
+          cp "neoforge/build/libs/better_radio-neoforge-${version}+${neoforge_minecraft_version}.jar" "release-artifacts/better-radio-${version}-neoforge-${neoforge_minecraft_version}.jar"
           test "$(find release-artifacts -type f | wc -l)" -eq 2
       - uses: actions/upload-artifact@v4
         with:
@@ -64,5 +68,15 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          gh release view "$RELEASE_TAG" >/dev/null 2>&1 || gh release create "$RELEASE_TAG" --generate-notes --title "Better Radio $RELEASE_TAG"
+          awk -v heading="## [${RELEASE_TAG#v}] - " '
+            index($0, heading) == 1 { found=1; next }
+            found && /^## / { exit }
+            found { print }
+          ' CHANGELOG.md > release-notes.md
+          test -s release-notes.md
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release edit "$RELEASE_TAG" --notes-file release-notes.md --title "Better Radio $RELEASE_TAG"
+          else
+            gh release create "$RELEASE_TAG" --notes-file release-notes.md --title "Better Radio $RELEASE_TAG"
+          fi
           gh release upload "$RELEASE_TAG" release-artifacts/*.jar --clobber

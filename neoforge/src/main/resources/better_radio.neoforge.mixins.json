@@ -4,7 +4,8 @@
   "package": "com.radaeli.betterradio.neoforge.client.mixin",
   "compatibilityLevel": "JAVA_21",
   "client": [
-    "WeighedSoundEventsAccessor"
+    "WeighedSoundEventsAccessor",
+    "ChannelPlaybackMixin"
   ],
   "injectors": {
     "defaultRequire": 1

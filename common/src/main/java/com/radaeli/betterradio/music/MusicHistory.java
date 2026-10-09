@@ -41,15 +41,18 @@ public final class MusicHistory {
         return Optional.of(tracks.get(--position));
     }
 
+    /** Clears only the forward navigation path, without changing the current track. */
+    public void discardForward() {
+        while (tracks.size() > position + 1) tracks.remove(tracks.size() - 1);
+    }
+
     /** Records a newly playing track, discarding any forward path after a branch. */
     public void record(MusicTrack track) {
         Objects.requireNonNull(track, "track");
         if (lastTrack().filter(track::equals).isPresent()) {
             return;
         }
-        while (tracks.size() > position + 1) {
-            tracks.remove(tracks.size() - 1);
-        }
+        discardForward();
         tracks.add(track);
         position = tracks.size() - 1;
     }

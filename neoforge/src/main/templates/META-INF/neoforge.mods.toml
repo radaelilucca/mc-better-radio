@@ -29,6 +29,6 @@ side="BOTH"
 [[dependencies.${mod_id}]]
 modId="r_ui_lib"
 type="required"
-versionRange="[0.1.0,)"
+versionRange="[0.4.0,)"
 ordering="AFTER"
 side="CLIENT"

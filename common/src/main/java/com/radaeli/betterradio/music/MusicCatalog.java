@@ -26,9 +26,17 @@ public final class MusicCatalog {
         if (audioFile.isBlank() || sourceId.isBlank()) {
             throw new IllegalArgumentException("Audio file and source id must not be blank");
         }
+        if (isNoteSound(audioFile)) {
+            return;
+        }
         MusicTrack source = new MusicTrack(audioFile,
                 biomeId.<Set<String>>map(Set::of).orElseGet(Set::of), Set.of(sourceId));
         tracks.merge(audioFile, source, MusicTrack::mergeSources);
+    }
+
+    private static boolean isNoteSound(String audioFile) {
+        int pathStart = audioFile.indexOf(':') + 1;
+        return audioFile.substring(pathStart).startsWith("note/");
     }
 
     public Collection<MusicTrack> tracks() {

@@ -1,5 +1,6 @@
 package com.radaeli.betterradio.neoforge.client;
 
+import com.mojang.blaze3d.audio.Channel;
 import com.radaeli.betterradio.music.MusicChannelPauseBridge;
 import com.radaeli.betterradio.music.MusicPlatform;
 import com.radaeli.betterradio.music.MusicTrack;
@@ -12,18 +13,18 @@ import net.minecraft.client.sounds.WeighedSoundEvents;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.sounds.SoundSource;
-import net.minecraft.sounds.Music;
 import net.minecraft.util.RandomSource;
 import net.neoforged.bus.api.EventPriority;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.neoforge.client.event.SelectMusicEvent;
+import net.neoforged.neoforge.client.event.sound.PlaySoundSourceEvent;
+import net.neoforged.neoforge.client.event.sound.PlayStreamingSourceEvent;
 
 import java.util.Optional;
+import java.util.OptionalDouble;
 
 /** Adapter that plays a retained concrete Sound file as local gameplay background music. */
 final class NeoForgeMusicPlatform implements MusicPlatform {
-    private static int vanillaMusicMinDelay = 12_000;
-    private static int vanillaMusicMaxDelay = 24_000;
     private static final String EVENT_SOURCE_PREFIX = "event:";
     private static FixedFileSound activeSound;
     private static MusicTrack activeTrack;
@@ -144,9 +145,39 @@ final class NeoForgeMusicPlatform implements MusicPlatform {
         return Optional.of(activeSound.getSound().getPath().toString());
     }
 
+    /** Client-thread polling is requested only by the visible Player tab, at most four times per second. */
+    static Progress playbackProgress(Minecraft minecraft) {
+        FixedFileSound sound = activeSound;
+        if (sound == null) return new Progress(0, OptionalDouble.empty());
+        sound.progress.requestUpdates();
+        OptionalDouble duration = TrackDurationCache.get(minecraft.getResourceManager(), sound.fixedFile.getPath())
+                .getNow(OptionalDouble.empty());
+        double position = sound.progress.positionSeconds();
+        return new Progress(duration.isPresent() ? Math.min(position, duration.getAsDouble()) : position, duration);
+    }
+
+    record Progress(double positionSeconds, OptionalDouble durationSeconds) { }
+
+    /** Source events are emitted on the audio thread after the actual channel starts. */
+    private static void attachProgress(SoundInstance instance, Channel channel) {
+        if (instance instanceof FixedFileSound sound) {
+            ((RadioAudioChannel) channel).betterRadio$trackProgress(sound.progress);
+        }
+    }
+
     /** Null selection makes MusicManager stop its current sound and avoid retrying gameplay music. */
     static final class VanillaMusicSelection {
         private VanillaMusicSelection() {
+        }
+
+        @SubscribeEvent
+        public static void playingStream(PlayStreamingSourceEvent event) {
+            attachProgress(event.getSound(), event.getChannel());
+        }
+
+        @SubscribeEvent
+        public static void playingBuffer(PlaySoundSourceEvent event) {
+            attachProgress(event.getSound(), event.getChannel());
         }
 
         @SubscribeEvent(priority = EventPriority.LOWEST)
@@ -158,22 +189,11 @@ final class NeoForgeMusicPlatform implements MusicPlatform {
             if (minecraft.screen != null && minecraft.screen.getBackgroundMusic() != null) {
                 return;
             }
-            observeVanillaMusic(event.getMusic());
             if (event.getMusic() != null) {
                 NeoForgeMusicCatalog.observeSituationalMusic(event.getMusic());
             }
             event.setMusic(null);
         }
-    }
-
-    private static void observeVanillaMusic(Music music) {
-        if (music == null) return;
-        vanillaMusicMinDelay = Math.max(0, music.getMinDelay());
-        vanillaMusicMaxDelay = Math.max(vanillaMusicMinDelay, music.getMaxDelay());
-    }
-
-    static int nextVanillaMusicDelayTicks() {
-        return RandomSource.create().nextInt(vanillaMusicMinDelay, vanillaMusicMaxDelay + 1);
     }
 
     /**
@@ -183,6 +203,7 @@ final class NeoForgeMusicPlatform implements MusicPlatform {
     private static final class FixedFileSound extends AbstractSoundInstance {
         private final ResourceLocation sourceEvent;
         private final Sound fixedFile;
+        private final AudioPlaybackProgress progress = new AudioPlaybackProgress();
 
         private FixedFileSound(Sound fixedFile, ResourceLocation sourceEvent) {
             super(sourceEvent, SoundSource.MUSIC, RandomSource.create());
