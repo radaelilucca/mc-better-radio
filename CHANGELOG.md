@@ -9,4 +9,3 @@
 - A searchable music library with background tracks and discs, including music from compatible mods. Save favorites directly from your history.
 - Free flow with adjustable biome preference and separate interval settings for Free flow and Playlist, including Non-stop.
 - Saved playlists and preferences across sessions, plus a choice of startup mode.
-- Playback shortcuts and notifications on NeoForge 1.21.1 and Forge 1.20.1, with independent personal playback through Minecraft's Music volume.
