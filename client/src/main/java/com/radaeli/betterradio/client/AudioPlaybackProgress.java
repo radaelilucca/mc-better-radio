@@ -1,4 +1,4 @@
-package com.radaeli.betterradio.neoforge.client;
+package com.radaeli.betterradio.client;
 
 /** Small handoff between the client and audio threads; no audio calls on the rendering thread. */
 public final class AudioPlaybackProgress {

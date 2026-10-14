@@ -1,4 +1,6 @@
-# Player pessoal — NeoForge 1.21.1
+# Player pessoal — Forge 1.20.1 e NeoForge 1.21.1
+
+Os dois loaders usam a mesma tela, persistência, sessão e agendamento. As diferenças de registro de discos, catálogo, áudio e eventos permanecem nos adaptadores de cada loader.
 
 O player abre com **F6**, configurável nos controles. A tela usa RUI Lib, mantém o jogo rodando e tem quatro abas: Player, Histórico, Playlist e Configurações. F7, F8 e F9 continuam controlando anterior, próxima e pausa, inclusive com a tela aberta. Escape fecha primeiro um dropdown aberto, depois o catálogo sobreposto, depois o player.
 
@@ -54,10 +56,10 @@ As configurações ficam em uma lista vertical com label à esquerda e input à 
 
 O arquivo usa versão de formato 1 e gravação por arquivo temporário seguida de substituição. Se houver dados inválidos ou uma versão desconhecida, o player começa em Free flow; antes de um novo salvamento, guarda uma cópia do arquivo original. Erros de salvamento são registrados no log e informados na tela, mantendo as alterações em memória.
 
-`PlayerSession` contém o estado sem depender de Minecraft. `MusicClientNeoForge` encaminha atalhos, botões e autoplay ao mesmo estado, e `PlayerScreen` usa Panel, Tabs, ScrollView, IconButton, Select, Slider e Modal da biblioteca. Os inputs de configurações permanecem montados durante atualizações da reprodução para preservar foco, arraste e dropdowns abertos. Apenas o layout das linhas, a divisão entre cabeçalho e lista e os textos limitados à largura são específicos do Better Radio.
+`PlayerSession` e `MusicAutoplayScheduler` contêm o estado e o agendamento sem depender do loader. `PlayerUiAccess` encaminha ações e consultas para `PlayerScreen`, que usa Panel, Tabs, ScrollView, IconButton, Select, Slider e Modal da R-UI-Lib. Os inputs de configurações permanecem montados durante atualizações da reprodução para preservar foco, arraste e dropdowns abertos. Apenas os adaptadores de plataforma e o layout específico do Better Radio ficam fora desse fluxo compartilhado.
 
 ## Validação
 
-Os testes de `PlayerSession` cobrem fila, saltos, navegação, histórico completo, repetição, shuffle, pausa, faixas ausentes e reinício de sessão. Os testes de persistência verificam o arquivo salvo e a recuperação de dados inválidos.
+Os testes de `PlayerSession` cobrem fila, saltos, navegação, histórico completo, repetição, shuffle, pausa, faixas ausentes e reinício de sessão. `MusicAutoplayScheduler` cobre espera inicial, conclusão, pausa e bloqueio de novos inícios. Os testes de persistência verificam preferências, pausa salva, importação do arquivo legado do Forge e recuperação de dados inválidos.
 
 No cliente, conferir F6, as quatro abas, o catálogo sobreposto, scroll, Escape, nomes longos, diferentes escalas de GUI e atualização durante a reprodução. Conferir também os dropdowns e suas tooltips, slider por arraste/roda/teclado, bias neutro/máximo, intervalos distintos por modo, repetição da playlist, faixas enfileiradas, atalhos imediatos, espera inicial de 10–15 segundos, troca de dimensão e persistência das configurações após reiniciar o cliente.

@@ -1,4 +1,6 @@
-package com.radaeli.betterradio.neoforge.client;
+package com.radaeli.betterradio.client;
+
+
 
 import com.radaeli.betterradio.music.MusicTrack;
 import com.radaeli.betterradio.music.PlayerSession;
@@ -9,6 +11,7 @@ import org.junit.rules.TemporaryFolder;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 import static org.junit.Assert.*;
@@ -67,5 +70,26 @@ public class PlayerSettingsStoreTest {
         Files.writeString(blocked, "keep this file");
         assertFalse(new PlayerSettingsStore(blocked.resolve("playlist.json")).save(PlayerSession.defaults()));
         assertEquals("keep this file", Files.readString(blocked));
+    }
+
+    @Test
+    public void legacyPauseIsImportedOnlyWhenJsonDoesNotExist() throws Exception {
+        MusicTrack paused = new MusicTrack("minecraft:music/game/calm1");
+        PlayerSettingsStore store = new PlayerSettingsStore(file());
+        assertEquals(paused, store.loadWithLegacyPause(Optional.of(paused)).pausedTrack());
+        assertTrue(store.save(PlayerSession.defaults()));
+        assertNull(store.loadWithLegacyPause(Optional.of(paused)).pausedTrack());
+    }
+
+    @Test
+    public void settingsRoundTripPreservesIndependentIntervalsBiasStartupAndPausedTrack() {
+        MusicTrack paused = new MusicTrack("minecraft:music/game/calm1");
+        PlayerSession.SavedState state = new PlayerSession.SavedState(List.of(), false,
+                PlayerSession.Mode.FREE_FLOW, com.radaeli.betterradio.music.MusicFrequency.OCCASIONAL,
+                35, com.radaeli.betterradio.music.StartupMode.PLAYLIST,
+                com.radaeli.betterradio.music.MusicFrequency.NON_STOP, paused);
+        PlayerSettingsStore store = new PlayerSettingsStore(file());
+        assertTrue(store.save(state));
+        assertEquals(state, store.load());
     }
 }

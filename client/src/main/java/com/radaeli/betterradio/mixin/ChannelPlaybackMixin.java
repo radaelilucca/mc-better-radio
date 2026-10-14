@@ -1,8 +1,8 @@
-package com.radaeli.betterradio.neoforge.client.mixin;
+package com.radaeli.betterradio.mixin;
 
 import com.mojang.blaze3d.audio.Channel;
-import com.radaeli.betterradio.neoforge.client.AudioPlaybackProgress;
-import com.radaeli.betterradio.neoforge.client.RadioAudioChannel;
+import com.radaeli.betterradio.client.AudioPlaybackProgress;
+import com.radaeli.betterradio.client.RadioAudioChannel;
 import net.minecraft.client.sounds.AudioStream;
 import org.lwjgl.openal.AL10;
 import org.lwjgl.openal.AL11;

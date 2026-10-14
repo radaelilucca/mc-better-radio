@@ -1,4 +1,4 @@
-package com.radaeli.betterradio.neoforge.client;
+package com.radaeli.betterradio.client;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -18,10 +18,11 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 /** Stores personal references rather than world-specific registries or playback positions. */
-final class PlayerSettingsStore {
+public final class PlayerSettingsStore {
     private static final Logger LOGGER = LoggerFactory.getLogger("better_radio");
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     private final Path file;
@@ -32,9 +33,9 @@ final class PlayerSettingsStore {
                             String musicFrequency, Integer biomeBiasPercent, String startupMode,
                             String playlistFrequency, TrackReference pausedTrack) { }
 
-    PlayerSettingsStore(Path file) { this.file = file; }
+    public PlayerSettingsStore(Path file) { this.file = file; }
 
-    PlayerSession.SavedState load() {
+    public PlayerSession.SavedState load() {
         if (!Files.exists(file)) return PlayerSession.defaults();
         try (var reader = Files.newBufferedReader(file, StandardCharsets.UTF_8)) {
             Document data = GSON.fromJson(reader, Document.class);
@@ -59,7 +60,16 @@ final class PlayerSettingsStore {
         }
     }
 
-    boolean save(PlayerSession.SavedState saved) {
+    /** Imports Forge's pre-JSON pause file only when no JSON state existed yet. */
+    public PlayerSession.SavedState loadWithLegacyPause(Optional<MusicTrack> legacyPausedTrack) {
+        boolean hasJsonState = Files.exists(file);
+        PlayerSession.SavedState saved = load();
+        if (hasJsonState || legacyPausedTrack.isEmpty()) return saved;
+        return new PlayerSession.SavedState(saved.playlist(), saved.shuffle(), saved.mode(), saved.musicFrequency(),
+                saved.biomeBiasPercent(), saved.startupMode(), saved.playlistFrequency(), legacyPausedTrack.get());
+    }
+
+    public boolean save(PlayerSession.SavedState saved) {
         Path temporary = file.resolveSibling(file.getFileName() + ".tmp");
         try {
             Files.createDirectories(file.getParent());

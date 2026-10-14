@@ -3,12 +3,17 @@ package com.radaeli.betterradio.neoforge.client;
 import com.mojang.blaze3d.platform.InputConstants;
 import com.radaeli.betterradio.BetterRadio;
 import com.radaeli.betterradio.music.MusicFrequency;
+import com.radaeli.betterradio.music.MusicAutoplayScheduler;
 import com.radaeli.betterradio.music.MusicTrack;
 import com.radaeli.betterradio.music.MusicTrackDiagnostics;
 import com.radaeli.betterradio.music.MusicTrackNames;
 import com.radaeli.betterradio.music.PlaybackToast;
 import com.radaeli.betterradio.music.PlayerSession;
 import com.radaeli.betterradio.music.StartupMode;
+import com.radaeli.betterradio.client.PlayerScreen;
+import com.radaeli.betterradio.client.PlayerSettingsStore;
+import com.radaeli.betterradio.client.PlayerUiAccess;
+import com.radaeli.betterradio.client.TrackDurationCache;
 import com.radaeli.betterradio.neoforge.MusicConfigNeoForge;
 import com.radaeli.ruilib.ui.*;
 import net.minecraft.client.KeyMapping;
@@ -58,9 +63,38 @@ public final class MusicClientNeoForge {
     private static final ToastHost TOAST_HOST = new ToastHost();
     private static UiTheme sourceToastTheme;
     private static UiTheme toastTheme;
-    private static int autoplayDelayTicks = -1;
-    private static boolean autoplayObservedPlayback;
+    private static final MusicAutoplayScheduler AUTOPLAY = new MusicAutoplayScheduler();
     private static String idleStateKey = "nothing_playing";
+    private static final PlayerUiAccess UI_ACCESS = new PlayerUiAccess() {
+        public boolean inWorld() { return MusicClientNeoForge.inWorld(); }
+        public UiTheme theme() { return MusicClientNeoForge.playerTheme(); }
+        public boolean handleScreenKey(int key, int scan) { return MusicClientNeoForge.handleScreenKey(key, scan); }
+        public PlayerSession.Snapshot snapshot() { return MusicClientNeoForge.snapshot(); }
+        public List<MusicTrack> catalog() { return MusicClientNeoForge.catalog(); }
+        public long revision() { return MusicClientNeoForge.revision(); }
+        public String idleStateKey() { return MusicClientNeoForge.idleStateKey(); }
+        public Component trackName(MusicTrack track) { return MusicClientNeoForge.trackName(track); }
+        public Component toastMessage(Component message) { return MusicClientNeoForge.toastMessage(message); }
+        public Progress playbackProgress() {
+            var progress = NeoForgeMusicPlatform.playbackProgress(Minecraft.getInstance());
+            return new Progress(progress.positionSeconds(), progress.durationSeconds());
+        }
+        public void playPrevious() { MusicClientNeoForge.playPrevious(); }
+        public void playNext() { MusicClientNeoForge.playNext(); }
+        public void togglePause() { MusicClientNeoForge.togglePause(); }
+        public void freeFlow() { MusicClientNeoForge.freeFlow(); }
+        public void activatePlaylist() { MusicClientNeoForge.activatePlaylist(); }
+        public void setShuffle(boolean value) { MusicClientNeoForge.setShuffle(value); }
+        public void skipTo(long key) { MusicClientNeoForge.skipTo(key); }
+        public void setMusicFrequency(MusicFrequency value) { MusicClientNeoForge.setMusicFrequency(value); }
+        public void setPlaylistFrequency(MusicFrequency value) { MusicClientNeoForge.setPlaylistFrequency(value); }
+        public void setBiomeBiasPercent(int value) { MusicClientNeoForge.setBiomeBiasPercent(value); }
+        public void setStartupMode(StartupMode value) { MusicClientNeoForge.setStartupMode(value); }
+        public void enqueue(MusicTrack track) { MusicClientNeoForge.enqueue(track); }
+        public void playNow(MusicTrack track) { MusicClientNeoForge.playNow(track); }
+        public void addToPlaylist(MusicTrack track) { MusicClientNeoForge.addToPlaylist(track); }
+        public void removeFromPlaylist(MusicTrack track) { MusicClientNeoForge.removeFromPlaylist(track); }
+    };
 
     private MusicClientNeoForge() { }
 
@@ -102,7 +136,7 @@ public final class MusicClientNeoForge {
             Minecraft minecraft = Minecraft.getInstance();
             if (OPEN_PLAYER_KEY.consumeClick() && inWorld()) {
                 if (minecraft.screen instanceof PlayerScreen) minecraft.setScreen(null);
-                else if (minecraft.screen == null) minecraft.setScreen(new PlayerScreen());
+                else if (minecraft.screen == null) minecraft.setScreen(new PlayerScreen(UI_ACCESS));
             }
             if (PLAY_PREVIOUS_KEY.consumeClick()) playPrevious();
             if (PLAY_NEXT_KEY.consumeClick()) playNext();
@@ -165,8 +199,7 @@ public final class MusicClientNeoForge {
     static void togglePause() {
         if (inWorld() && session.togglePause(platform())) {
             boolean paused = session.isPlaybackPaused();
-            autoplayObservedPlayback = !paused;
-            autoplayDelayTicks = -1;
+            if (paused) AUTOPLAY.pause(); else AUTOPLAY.manualStart();
             idleStateKey = paused ? "nothing_playing" : "interval";
             Optional<MusicTrack> current = snapshot().current();
             if (current.isPresent()) showPlayback(current.get(), paused);
@@ -225,8 +258,7 @@ public final class MusicClientNeoForge {
         if (session.isPlaybackPaused()) return;
         PlayerSession.Snapshot state = snapshot();
         if (state.current().isEmpty() && !state.history().isEmpty()) {
-            autoplayDelayTicks = session.nextAutoplayDelayTicks(platform());
-            autoplayObservedPlayback = false;
+            AUTOPLAY.reschedule(session.nextAutoplayDelayTicks(platform()));
             idleStateKey = "interval";
         }
     }
@@ -261,8 +293,7 @@ public final class MusicClientNeoForge {
 
     private static void announce(String action, Optional<MusicTrack> selected) {
         selected.ifPresent(track -> {
-            autoplayObservedPlayback = true;
-            autoplayDelayTicks = -1;
+            AUTOPLAY.manualStart();
             idleStateKey = "nothing_playing";
             LOGGER.info("Playback action={} selectedTrack={}", action, MusicTrackDiagnostics.describe(track));
             showPlayback(track, false);
@@ -278,8 +309,7 @@ public final class MusicClientNeoForge {
                 activeLevel.clear();
                 session = new PlayerSession(new Random(), session.savedState());
                 PLAYBACK_TOAST.clear();
-                autoplayObservedPlayback = false;
-                autoplayDelayTicks = -1;
+                AUTOPLAY.reset();
                 idleStateKey = "nothing_playing";
             }
             return;
@@ -290,8 +320,7 @@ public final class MusicClientNeoForge {
             activeConnection = new WeakReference<>(minecraft.getConnection());
             session = new PlayerSession(new Random(), session.savedState());
             PLAYBACK_TOAST.clear();
-            autoplayDelayTicks = session.isPlaybackPaused() ? -1 : randomInitialDelayTicks();
-            autoplayObservedPlayback = false;
+            AUTOPLAY.startSession(session.isPlaybackPaused(), randomInitialDelayTicks());
             idleStateKey = session.isPlaybackPaused() ? "nothing_playing" : "starting";
         }
         if (activeLevel.get() != minecraft.level) {
@@ -307,37 +336,28 @@ public final class MusicClientNeoForge {
         if (!inWorld()) return;
         NeoForgeMusicPlatform platform = platform();
         if (session.isPlaybackPaused()) {
-            autoplayObservedPlayback = false;
-            autoplayDelayTicks = -1;
+            AUTOPLAY.pause();
             if (minecraft.options.getSoundSourceVolume(SoundSource.MUSIC) > 0.0F
                     && (minecraft.screen == null || minecraft.screen.getBackgroundMusic() == null)) {
                 session.maintainPausedPlayback(platform);
             }
             return;
         }
-        if (minecraft.options.getSoundSourceVolume(SoundSource.MUSIC) <= 0.0F
-                || (minecraft.screen != null && minecraft.screen.getBackgroundMusic() != null)) return;
-        if (platform.currentTrack().isPresent()) {
-            autoplayObservedPlayback = true;
-            autoplayDelayTicks = -1;
-            return;
-        }
-        if (autoplayObservedPlayback) {
-            autoplayDelayTicks = session.nextAutoplayDelayTicks(platform);
-            idleStateKey = "interval";
-        } else if (autoplayDelayTicks < 0) {
-            autoplayDelayTicks = randomInitialDelayTicks();
-            idleStateKey = "starting";
-        }
-        autoplayObservedPlayback = false;
-        if (autoplayDelayTicks > 0) {
-            autoplayDelayTicks--;
-            return;
-        }
-        Optional<MusicTrack> started = session.playNext(platform);
-        if (started.isPresent()) announce("AUTO_START", started);
-        else {
-            autoplayDelayTicks = AUTOPLAY_RETRY_TICKS;
+        boolean mayAdvance = minecraft.options.getSoundSourceVolume(SoundSource.MUSIC) > 0.0F
+                && (minecraft.screen == null || minecraft.screen.getBackgroundMusic() == null);
+        java.util.concurrent.atomic.AtomicReference<Optional<MusicTrack>> selected =
+                new java.util.concurrent.atomic.AtomicReference<>(Optional.empty());
+        MusicAutoplayScheduler.Tick result = AUTOPLAY.tick(false, platform.currentTrack().isPresent(), mayAdvance,
+                MusicClientNeoForge::randomInitialDelayTicks, () -> session.nextAutoplayDelayTicks(platform),
+                () -> {
+                    selected.set(session.playNext(platform));
+                    return selected.get().isPresent();
+                }, AUTOPLAY_RETRY_TICKS);
+        if (result == MusicAutoplayScheduler.Tick.STARTING) idleStateKey = "starting";
+        if (result == MusicAutoplayScheduler.Tick.INTERVAL) idleStateKey = "interval";
+        if (result == MusicAutoplayScheduler.Tick.STARTED && selected.get().isPresent()) {
+            announce("AUTO_START", selected.get());
+        } else if (result == MusicAutoplayScheduler.Tick.NO_TRACK) {
             idleStateKey = "nothing_playing";
         }
     }

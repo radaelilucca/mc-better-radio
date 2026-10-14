@@ -9,7 +9,7 @@ package com.radaeli.betterradio;
 public final class BetterRadio {
     public static final String MOD_ID = "better_radio";
     public static final String MOD_NAME = "Better Radio";
-    public static final String MOD_VERSION = "0.1.0";
+    public static final String MOD_VERSION = "0.2.0";
 
     private BetterRadio() {
     }

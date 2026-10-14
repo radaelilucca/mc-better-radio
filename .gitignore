@@ -3,9 +3,12 @@
 build/
 */build/
 */runs/
+/forge/logs/
 *.iml
 .idea/
 .vscode/*.log
-# Version only the R-UI dependency currently used by this checkout.
+# Keep the exact R-UI versions used by each loader available for independent builds.
+/forge/libs/r-ui-lib-forge-*.jar
+!/forge/libs/r-ui-lib-forge-0.5.0.jar
 /neoforge/libs/r-ui-lib-neoforge-*.jar
-!/neoforge/libs/r-ui-lib-neoforge-0.4.0.jar
+!/neoforge/libs/r-ui-lib-neoforge-0.5.0.jar

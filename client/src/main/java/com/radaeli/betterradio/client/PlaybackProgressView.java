@@ -1,4 +1,4 @@
-package com.radaeli.betterradio.neoforge.client;
+package com.radaeli.betterradio.client;
 
 import com.radaeli.ruilib.ui.Bounds;
 import com.radaeli.ruilib.ui.ProgressBar;
@@ -8,22 +8,24 @@ import com.radaeli.ruilib.ui.UiPaint;
 import com.radaeli.ruilib.ui.UiSize;
 import com.radaeli.ruilib.ui.UiText;
 import com.radaeli.ruilib.ui.UiTheme;
-import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 
 /** Updates independently of the screen's lists, selection and layout. Rendering only draws cached data. */
 final class PlaybackProgressView extends UiContainer {
+    private final PlayerUiAccess access;
     private final ProgressBar bar = add(new ProgressBar(0, 1, 0).setBarHeight(3));
     private long nextUpdateNanos;
     private long displayedPosition = -1;
     private long displayedDuration = -2;
     private String time = "--:-- / --:--";
 
+    PlaybackProgressView(PlayerUiAccess access) { this.access = access; }
+
     void update() {
         long now = System.nanoTime();
         if (now < nextUpdateNanos) return;
         nextUpdateNanos = now + 250_000_000L;
-        var progress = NeoForgeMusicPlatform.playbackProgress(Minecraft.getInstance());
+        var progress = access.playbackProgress();
         double duration = progress.durationSeconds().orElse(-1);
         bar.setRange(0, duration > 0 ? duration : 1).setValue(duration > 0 ? progress.positionSeconds() : 0);
         long positionSeconds = duration >= 0 ? (long) progress.positionSeconds() : -1;

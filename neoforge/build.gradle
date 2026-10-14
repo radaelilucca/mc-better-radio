@@ -3,7 +3,7 @@ plugins {
     id 'net.neoforged.moddev'
 }
 
-def rUiLibJar = file('libs/r-ui-lib-neoforge-0.4.0.jar')
+def rUiLibJar = file("libs/r-ui-lib-neoforge-${r_ui_lib_version}.jar")
 
 base {
     archivesName = "${mod_id}-neoforge"
@@ -14,8 +14,10 @@ version = "${mod_version}+${neoforge_minecraft_version}"
 sourceSets {
     main {
         java.srcDir('../common/src/main/java')
+        java.srcDir('../client/src/main/java')
         resources.srcDir('../common/src/main/resources')
     }
+    test { java.srcDir('../client/src/test/java') }
 }
 
 java {
@@ -65,7 +67,8 @@ def generateModMetadata = tasks.register('generateModMetadata', ProcessResources
         mod_license             : mod_license,
         mod_version             : "${mod_version}+${neoforge_minecraft_version}",
         mod_authors             : mod_authors,
-        mod_description        : mod_description
+        mod_description        : mod_description,
+        r_ui_lib_version       : r_ui_lib_version
     ]
     inputs.properties(replaceProperties)
     expand(replaceProperties)

@@ -10,9 +10,9 @@ Give every build, mining trip, and adventure the music you want to hear. Better 
 
 ## Choose your mood
 
-**Free flow:** Let the music find you as you explore, with a preference for background tracks that suit your biome. In the NeoForge player, choose Frequent, Balanced, Occasional, or Non-stop to set the pace.
+**Free flow:** Let the music find you as you explore, with a preference for background tracks that suit your biome. Choose Frequent, Balanced, Occasional, or Non-stop to set the pace.
 
-**Playlist:** Build a mix of background music and discs, then play it on repeat or turn on shuffle. Choose its pace independently from Free flow, with a short 2–4 second pause by default. Your saved playlist follows you between worlds. Available in the NeoForge player.
+**Playlist:** Build a mix of background music and discs, then play it on repeat or turn on shuffle. Choose its pace independently from Free flow, with a short 2–4 second pause by default. Your saved playlist follows you between worlds.
 
 ## Your music, within reach
 
@@ -24,6 +24,10 @@ Press **F6** to open the player:
 - **Settings tab:** Choose separate intervals for Free flow and Playlist, adjust how strongly music follows your biome, and choose which mode starts with your world. Your preferences stay saved between sessions.
 
 Background tracks and discs from compatible music mods can appear in your library too.
+
+## Compatibility
+
+Available for **Minecraft 1.20.1 (Forge)** and **Minecraft 1.21.1 (NeoForge)**. Both versions include the same player and settings.
 
 ## Default controls
 

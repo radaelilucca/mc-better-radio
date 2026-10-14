@@ -1,6 +1,6 @@
 # Better Radio — PRD do MVP
 
-**Status:** Implementação das fases 0–8 concluída nos dois loaders. Testes comuns, builds/JARs Forge e NeoForge e smoke de inicialização dos clientes passaram. A validação final de áudio e HUD em jogo permanece para o usuário.
+**Status:** Player compartilhado implementado nos dois loaders. Testes comuns, builds/JARs Forge e NeoForge e smoke de inicialização dos clientes passaram. A validação interativa de tela e áudio nos mundos continua pendente.
 **Plataformas:** Minecraft 1.20.1 (Forge) e Minecraft 1.21.1 (NeoForge).
 **Arquitetura:** [minecraft-music-hotkey-architecture.md](minecraft-music-hotkey-architecture.md)
 

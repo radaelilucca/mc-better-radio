@@ -14,6 +14,10 @@ plugins {
 
 apply plugin: 'org.spongepowered.mixin'
 
+repositories {
+    flatDir { dirs 'libs' }
+}
+
 base {
     archivesName = "${mod_id}-forge"
 }
@@ -23,8 +27,10 @@ version = "${mod_version}+${forge_minecraft_version}"
 sourceSets {
     main {
         java.srcDir('../common/src/main/java')
+        java.srcDir('../client/src/main/java')
         resources.srcDir('../common/src/main/resources')
     }
+    test { java.srcDir('../client/src/test/java') }
 }
 
 java {
@@ -70,7 +76,9 @@ mixin {
 
 dependencies {
     minecraft "net.minecraftforge:forge:${forge_minecraft_version}-${forge_version}"
+    implementation fg.deobf("com.radaeli.ruilib:r-ui-lib-forge:${r_ui_lib_version}")
     annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
+    testImplementation 'junit:junit:4.13.2'
 }
 
 processResources {
@@ -84,7 +92,8 @@ processResources {
         minecraft_version: forge_minecraft_version,
         forge_version: forge_version,
         forge_loader_version_range: forge_loader_version_range,
-        forge_minecraft_version_range: forge_minecraft_version_range
+        forge_minecraft_version_range: forge_minecraft_version_range,
+        r_ui_lib_version: r_ui_lib_version
     ]
     inputs.properties(properties)
     filesMatching('META-INF/mods.toml') {
@@ -98,6 +107,7 @@ tasks.withType(JavaCompile).configureEach {
 }
 
 jar {
+    finalizedBy 'reobfJar'
     manifest {
         attributes('MixinConfigs': 'better_radio.forge.mixins.json')
     }

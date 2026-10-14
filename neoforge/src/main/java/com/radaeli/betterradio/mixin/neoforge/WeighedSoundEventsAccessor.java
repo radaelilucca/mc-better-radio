@@ -1,4 +1,4 @@
-package com.radaeli.betterradio.neoforge.client.mixin;
+package com.radaeli.betterradio.mixin.neoforge;
 
 import net.minecraft.client.resources.sounds.Sound;
 import net.minecraft.client.sounds.WeighedSoundEvents;

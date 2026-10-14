@@ -5,7 +5,7 @@ import com.radaeli.betterradio.music.MusicSource;
 import com.radaeli.betterradio.music.MusicTrack;
 import com.radaeli.betterradio.music.SoundDefinitionEntry;
 import com.radaeli.betterradio.music.SoundDefinitionFlattener;
-import com.radaeli.betterradio.neoforge.client.mixin.WeighedSoundEventsAccessor;
+import com.radaeli.betterradio.mixin.neoforge.WeighedSoundEventsAccessor;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.resources.sounds.Sound;

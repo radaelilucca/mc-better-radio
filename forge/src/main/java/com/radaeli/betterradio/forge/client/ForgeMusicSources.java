@@ -22,7 +22,7 @@ final class ForgeMusicSources {
         List<MusicSource> sources = new ArrayList<>();
         minecraft.level.registryAccess().registryOrThrow(Registries.BIOME).entrySet().forEach(entry ->
                 entry.getValue().getBackgroundMusic().ifPresent(music -> add(
-                        sources, music, "biome:" + entry.getKey(), Optional.of(entry.getKey().toString()))));
+                        sources, music, "biome:" + entry.getKey().location(), Optional.of(entry.getKey().location().toString()))));
 
         add(sources, Musics.CREATIVE, "situation:creative", Optional.empty());
         add(sources, Musics.END_BOSS, "situation:end_boss", Optional.empty());

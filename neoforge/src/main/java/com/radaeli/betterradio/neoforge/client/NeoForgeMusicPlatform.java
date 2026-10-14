@@ -4,6 +4,9 @@ import com.mojang.blaze3d.audio.Channel;
 import com.radaeli.betterradio.music.MusicChannelPauseBridge;
 import com.radaeli.betterradio.music.MusicPlatform;
 import com.radaeli.betterradio.music.MusicTrack;
+import com.radaeli.betterradio.client.AudioPlaybackProgress;
+import com.radaeli.betterradio.client.RadioAudioChannel;
+import com.radaeli.betterradio.client.TrackDurationCache;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.resources.sounds.AbstractSoundInstance;
 import net.minecraft.client.resources.sounds.Sound;
@@ -96,11 +99,13 @@ final class NeoForgeMusicPlatform implements MusicPlatform {
 
     @Override
     public boolean pauseCurrentTrack() {
-        if (pausedByUser) return true;
         if (activeSound == null || !MusicChannelPauseBridge.setSoundInstancePaused(
                 minecraft.getSoundManager(), activeSound, true)) {
             return false;
         }
+        // Reapply the physical pause while the session's pause latch is active.
+        // Screen transitions can cause Minecraft to resume its audio channel even
+        // though the logical paused state is still set.
         pausedByUser = true;
         return true;
     }
@@ -163,7 +168,7 @@ final class NeoForgeMusicPlatform implements MusicPlatform {
     /** Source events are emitted on the audio thread after the actual channel starts. */
     private static void attachProgress(SoundInstance instance, Channel channel) {
         if (instance instanceof FixedFileSound sound) {
-            ((RadioAudioChannel) channel).betterRadio$trackProgress(sound.progress);
+        ((RadioAudioChannel) channel).betterRadio$trackProgress(sound.progress);
         }
     }
 

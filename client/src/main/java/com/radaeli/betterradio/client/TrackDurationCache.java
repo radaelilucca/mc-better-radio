@@ -1,4 +1,4 @@
-package com.radaeli.betterradio.neoforge.client;
+package com.radaeli.betterradio.client;
 
 import com.radaeli.betterradio.music.OggTrackDuration;
 import net.minecraft.Util;
@@ -12,14 +12,14 @@ import java.util.OptionalDouble;
 import java.util.concurrent.CompletableFuture;
 
 /** Requested only by the visible player. Keeps a bounded cache, including unknown durations. */
-final class TrackDurationCache {
+public final class TrackDurationCache {
     private static final int MAX_ENTRIES = 64;
     private static final LinkedHashMap<ResourceLocation, CompletableFuture<OptionalDouble>> CACHE =
             new LinkedHashMap<>(16, 0.75F, true);
 
     private TrackDurationCache() { }
 
-    static CompletableFuture<OptionalDouble> get(ResourceManager resources, ResourceLocation file) {
+    public static CompletableFuture<OptionalDouble> get(ResourceManager resources, ResourceLocation file) {
         var cached = CACHE.get(file);
         if (cached != null) return cached;
         var future = CompletableFuture.supplyAsync(() -> {
@@ -34,5 +34,5 @@ final class TrackDurationCache {
         return future;
     }
 
-    static void invalidate() { CACHE.clear(); }
+    public static void invalidate() { CACHE.clear(); }
 }

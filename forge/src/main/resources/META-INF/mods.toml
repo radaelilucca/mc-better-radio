@@ -22,3 +22,10 @@ mandatory=true
 versionRange="${forge_minecraft_version_range}"
 ordering="NONE"
 side="BOTH"
+
+[[dependencies.${mod_id}]]
+modId="r_ui_lib"
+mandatory=true
+versionRange="[${r_ui_lib_version},)"
+ordering="AFTER"
+side="CLIENT"

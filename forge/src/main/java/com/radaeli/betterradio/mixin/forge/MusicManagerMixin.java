@@ -1,4 +1,4 @@
-package com.radaeli.betterradio.forge.mixin.client;
+package com.radaeli.betterradio.mixin.forge;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.resources.sounds.SoundInstance;

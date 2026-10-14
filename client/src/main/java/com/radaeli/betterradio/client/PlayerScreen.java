@@ -1,4 +1,4 @@
-package com.radaeli.betterradio.neoforge.client;
+package com.radaeli.betterradio.client;
 
 import com.radaeli.betterradio.music.MusicFrequency;
 import com.radaeli.betterradio.music.MusicTrack;
@@ -18,11 +18,12 @@ import java.util.Locale;
 import java.util.Map;
 
 /** Personal player and settings, built from RUI components with one catalog overlay. */
-final class PlayerScreen extends UiScreen {
+public final class PlayerScreen extends UiScreen {
     private static final long CATALOG_SEARCH_DEBOUNCE_MS = 200;
     private static final String PLAYLIST_MODE_ICON = "≡";
     private static final String FREE_FLOW_MODE_ICON = "∞";
     private final Tabs tabs = new Tabs();
+    private final PlayerUiAccess access;
     private final Page player = new Page();
     private final Page history = new Page();
     private final Page playlist = new Page();
@@ -44,10 +45,11 @@ final class PlayerScreen extends UiScreen {
     private final Map<String, Boolean> historySaveEnabled = new HashMap<>();
     private boolean historySaveCacheInitialized;
 
-    PlayerScreen() { this(new Column(6)); }
+    public PlayerScreen(PlayerUiAccess access) { this(access, new Column(6)); }
 
-    private PlayerScreen(Column content) {
-        super(Component.literal("Better Radio"), new Panel(content), MusicClientNeoForge.playerTheme());
+    private PlayerScreen(PlayerUiAccess access, Column content) {
+        super(Component.literal("Better Radio"), new Panel(content), access.theme());
+        this.access = access;
         catalogSearch.setResponder(query -> {
             pendingCatalogSearch = query;
             catalogSearchChangedAt = net.minecraft.Util.getMillis();
@@ -90,7 +92,7 @@ final class PlayerScreen extends UiScreen {
     @Override
     public void tick() {
         super.tick();
-        if (!MusicClientNeoForge.inWorld()) {
+        if (!access.inWorld()) {
             onClose();
             return;
         }
@@ -104,7 +106,7 @@ final class PlayerScreen extends UiScreen {
     }
 
     @Override
-    public UiTheme theme() { return MusicClientNeoForge.playerTheme(); }
+    public UiTheme theme() { return access.theme(); }
 
     @Override
     protected void layoutRoot(UiTheme theme) {
@@ -119,16 +121,16 @@ final class PlayerScreen extends UiScreen {
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
         if (modal() == null && keyCode != GLFW.GLFW_KEY_ESCAPE
-                && MusicClientNeoForge.handleScreenKey(keyCode, scanCode)) return true;
+                && access.handleScreenKey(keyCode, scanCode)) return true;
         return super.keyPressed(keyCode, scanCode, modifiers);
     }
 
     private void refresh(boolean force) {
-        if (!MusicClientNeoForge.inWorld()) return;
-        PlayerSession.Snapshot state = MusicClientNeoForge.snapshot();
-        List<MusicTrack> catalog = MusicClientNeoForge.catalog();
-        long revision = MusicClientNeoForge.revision();
-        String idleStateKey = MusicClientNeoForge.idleStateKey();
+        if (!access.inWorld()) return;
+        PlayerSession.Snapshot state = access.snapshot();
+        List<MusicTrack> catalog = access.catalog();
+        long revision = access.revision();
+        String idleStateKey = access.idleStateKey();
         if (!force && revision == lastRevision && state.equals(lastState) && catalog.equals(lastCatalog)
                 && idleStateKey.equals(lastIdleStateKey)) return;
         lastState = state;
@@ -162,44 +164,44 @@ final class PlayerScreen extends UiScreen {
 
         CenteredGroup controls = new CenteredGroup(8);
         IconButton switchMode = controls.add(icon(currentModeIcon, currentModeName,
-                playlistMode ? MusicClientNeoForge::freeFlow : MusicClientNeoForge::activatePlaylist));
+                playlistMode ? access::freeFlow : access::activatePlaylist));
         switchMode.setEnabled(!state.paused()
                 && (playlistMode || state.playlist().stream().anyMatch(lastCatalog::contains)));
         switchMode.tooltip(
                 text(playlistMode ? "playlist_mode_title" : "free_flow_mode_title"),
                 text(playlistMode ? "playlist_mode_help" : "free_flow_mode_help"),
                 text(playlistMode ? "switch_to_free_flow" : "switch_to_playlist"));
-        IconButton previous = controls.add(icon("|<", "previous", MusicClientNeoForge::playPrevious));
+        IconButton previous = controls.add(icon("|<", "previous", access::playPrevious));
         previous.setEnabled(!state.paused() && state.canPrevious());
         IconButton playPause = controls.add(icon(state.current().isPresent() && !state.paused() ? "||" : ">",
                 state.current().isPresent() && !state.paused() ? "pause" : "play",
-                MusicClientNeoForge::togglePause));
+                access::togglePause));
         playPause.setEnabled(state.current().isPresent() || !lastCatalog.isEmpty());
-        IconButton next = controls.add(icon(">|", "next", MusicClientNeoForge::playNext));
+        IconButton next = controls.add(icon(">|", "next", access::playNext));
         next.setEnabled(!state.paused() && !lastCatalog.isEmpty());
         IconButton shuffle = controls.add(icon("⇄", "shuffle", () ->
-                MusicClientNeoForge.setShuffle(!state.shuffle())));
+                access.setShuffle(!state.shuffle())));
         shuffle.tooltip(text("shuffle_help"));
         player.header.add(controls);
 
         Component current = state.current().map(track -> state.paused()
-                ? text("paused_track", MusicClientNeoForge.trackName(track))
-                : MusicClientNeoForge.trackName(track)).orElseGet(() -> text(lastIdleStateKey));
+                ? text("paused_track", access.trackName(track))
+                : access.trackName(track)).orElseGet(() -> text(lastIdleStateKey));
         CenteredGroup currentTrack = new CenteredGroup(0);
         currentTrack.add(new FittingLabel(current, false, false));
         player.header.add(currentTrack);
         playbackProgress = null;
         if (state.current().isPresent()) {
-            playbackProgress = new PlaybackProgressView();
+            playbackProgress = new PlaybackProgressView(access);
             CenteredGroup progress = new CenteredGroup(0);
             progress.add(playbackProgress);
             player.header.add(progress);
         }
         player.header.add(new Label(text("up_next")));
         for (PlayerSession.QueueEntry entry : state.upcoming()) {
-            IconButton skip = icon(">", "skip_to", () -> MusicClientNeoForge.skipTo(entry.key()));
+            IconButton skip = icon(">", "skip_to", () -> access.skipTo(entry.key()));
             skip.setEnabled(!state.paused());
-            player.addListItem(new TrackRow(MusicClientNeoForge.trackName(entry.track()), skip));
+            player.addListItem(new TrackRow(access.trackName(entry.track()), skip));
         }
         if (lastCatalog.isEmpty()) {
             player.addListItem(new FittingLabel(text("empty_catalog")));
@@ -218,17 +220,17 @@ final class PlayerScreen extends UiScreen {
                 String key = "frequency." + frequency.name().toLowerCase(Locale.ROOT);
                 frequencies.add(new Select.Option<>(frequency, text(key), Tooltip.of(text(key + "_help"))));
             }
-            musicFrequencyInput = new Select<>(frequencies, state.musicFrequency(), MusicClientNeoForge::setMusicFrequency);
-            playlistFrequencyInput = new Select<>(frequencies, state.playlistFrequency(), MusicClientNeoForge::setPlaylistFrequency);
+            musicFrequencyInput = new Select<>(frequencies, state.musicFrequency(), access::setMusicFrequency);
+            playlistFrequencyInput = new Select<>(frequencies, state.playlistFrequency(), access::setPlaylistFrequency);
             biomeBiasInput = new Slider(0, 100, state.biomeBiasPercent(), 5,
-                    value -> MusicClientNeoForge.setBiomeBiasPercent((int) Math.round(value)))
+                    value -> access.setBiomeBiasPercent((int) Math.round(value)))
                     .setValueFormatter(value -> Math.round(value) + "%");
             List<Select.Option<StartupMode>> startupModes = new ArrayList<>();
             for (StartupMode startupMode : StartupMode.values()) {
                 String key = "startup." + startupMode.name().toLowerCase(Locale.ROOT);
                 startupModes.add(new Select.Option<>(startupMode, text(key), Tooltip.of(text(key + "_help"))));
             }
-            startupModeInput = new Select<>(startupModes, state.startupMode(), MusicClientNeoForge::setStartupMode);
+            startupModeInput = new Select<>(startupModes, state.startupMode(), access::setStartupMode);
             settings.clear();
             settings.addListItem(new SettingRow(text("free_flow_interval"), text("free_flow_interval_help"), musicFrequencyInput));
             settings.addListItem(new SettingRow(text("playlist_interval"), text("playlist_interval_help"), playlistFrequencyInput));
@@ -251,8 +253,8 @@ final class PlayerScreen extends UiScreen {
             MusicTrack track = recent.get(i);
             Component name = trackName(track, available);
             if (i == 0 && state.current().filter(track::equals).isPresent()) name = text("current", name);
-            IconButton enqueue = icon("+", "enqueue", () -> MusicClientNeoForge.enqueue(track));
-            IconButton play = icon(">", "play_now", () -> MusicClientNeoForge.playNow(track));
+            IconButton enqueue = icon("+", "enqueue", () -> access.enqueue(track));
+            IconButton play = icon(">", "play_now", () -> access.playNow(track));
             boolean trackAvailable = available.contains(track);
             boolean canSave = historySaveEnabled.getOrDefault(track.id(), true);
             IconButton save = icon("↓", "save_to_playlist", () -> saveHistoryTrack(track));
@@ -267,13 +269,13 @@ final class PlayerScreen extends UiScreen {
     /** Rebuilt only when opening this screen or saving from History, never by tick/render/refresh. */
     private void refreshHistorySaveCache() {
         historySaveEnabled.clear();
-        for (MusicTrack track : MusicClientNeoForge.snapshot().playlist()) {
+        for (MusicTrack track : access.snapshot().playlist()) {
             historySaveEnabled.put(track.id(), false);
         }
     }
 
     private void saveHistoryTrack(MusicTrack track) {
-        MusicClientNeoForge.addToPlaylist(track);
+        access.addToPlaylist(track);
         refreshHistorySaveCache();
         refresh(true);
     }
@@ -286,12 +288,12 @@ final class PlayerScreen extends UiScreen {
         if (state.playlist().isEmpty()) playlist.addListItem(new FittingLabel(text("empty_playlist")));
         for (MusicTrack track : state.playlist()) {
             playlist.addListItem(new TrackRow(trackName(track, available),
-                    icon("x", "remove", () -> MusicClientNeoForge.removeFromPlaylist(track))));
+                    icon("x", "remove", () -> access.removeFromPlaylist(track))));
         }
     }
 
-    private static Component trackName(MusicTrack track, List<MusicTrack> available) {
-        Component name = MusicClientNeoForge.trackName(track);
+    private Component trackName(MusicTrack track, List<MusicTrack> available) {
+        Component name = access.trackName(track);
         return available.contains(track) ? name : text("unavailable_track", name);
     }
 
@@ -300,7 +302,7 @@ final class PlayerScreen extends UiScreen {
         pendingCatalogSearch = "";
         appliedCatalogSearch = "";
         catalogSearchChangedAt = 0;
-        buildCatalog(MusicClientNeoForge.snapshot(), MusicClientNeoForge.catalog());
+        buildCatalog(access.snapshot(), access.catalog());
         showModal(new Modal(text("add_music"), catalogPage, 420, Math.min(310, height - 16))
                 .setHeaderAction(icon("x", "done", this::closeModal)));
     }
@@ -312,9 +314,9 @@ final class PlayerScreen extends UiScreen {
         List<MusicTrack> sorted = new ArrayList<>(available.stream()
                 .filter(track -> !state.playlist().contains(track))
                 .filter(track -> query.isEmpty()
-                        || MusicClientNeoForge.trackName(track).getString().toLowerCase(Locale.ROOT).contains(query))
+                        || access.trackName(track).getString().toLowerCase(Locale.ROOT).contains(query))
                 .toList());
-        sorted.sort(Comparator.comparing(track -> MusicClientNeoForge.trackName(track).getString(),
+        sorted.sort(Comparator.comparing(track -> access.trackName(track).getString(),
                 String.CASE_INSENSITIVE_ORDER));
         if (sorted.isEmpty()) {
             String emptyMessage = !query.isEmpty() ? "no_search_results"
@@ -322,8 +324,8 @@ final class PlayerScreen extends UiScreen {
             catalogPage.addListItem(new FittingLabel(text(emptyMessage)));
         }
         for (MusicTrack track : sorted) {
-            IconButton add = icon("+", "add", () -> MusicClientNeoForge.addToPlaylist(track));
-            catalogPage.addListItem(new TrackRow(MusicClientNeoForge.trackName(track), add));
+            IconButton add = icon("+", "add", () -> access.addToPlaylist(track));
+            catalogPage.addListItem(new TrackRow(access.trackName(track), add));
         }
     }
 
@@ -332,13 +334,13 @@ final class PlayerScreen extends UiScreen {
                 || net.minecraft.Util.getMillis() - catalogSearchChangedAt < CATALOG_SEARCH_DEBOUNCE_MS) return;
 
         appliedCatalogSearch = pendingCatalogSearch;
-        buildCatalog(MusicClientNeoForge.snapshot(), lastCatalog);
+        buildCatalog(access.snapshot(), lastCatalog);
         modal().layoutInScreen(font, theme(), width, height);
         catalogPage.list.setScrollOffset(0);
     }
 
-    void showSaveError() {
-        toastHost().show(new Toast(MusicClientNeoForge.toastMessage(text("save_error")), Toast.Level.INFO, 80));
+    public void showSaveError() {
+        toastHost().show(new Toast(access.toastMessage(text("save_error")), Toast.Level.INFO, 80));
     }
 
     /** Reserves the header's natural height and gives all remaining room to the RUI scroll view. */

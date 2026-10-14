@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.2.0] - 2026-10-14
+
+### Added
+
+- The full Better Radio player and settings are now available on Forge 1.20.1.
+
+### Fixed
+
+- Paused music stays paused after closing the player and resumes only after a direct play action.
+
 ## [0.1.1] - 2026-10-14
 
 ### Fixed
