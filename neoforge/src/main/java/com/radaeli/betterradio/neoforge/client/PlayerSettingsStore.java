@@ -30,7 +30,7 @@ final class PlayerSettingsStore {
     private record TrackReference(String id, Set<String> biomeIds, Set<String> sourceIds) { }
     private record Document(int version, List<TrackReference> playlist, boolean shuffle, String mode,
                             String musicFrequency, Integer biomeBiasPercent, String startupMode,
-                            String playlistFrequency) { }
+                            String playlistFrequency, TrackReference pausedTrack) { }
 
     PlayerSettingsStore(Path file) { this.file = file; }
 
@@ -50,7 +50,8 @@ final class PlayerSettingsStore {
                     ? MusicSelector.DEFAULT_BIOME_BIAS_PERCENT : data.biomeBiasPercent();
             return new PlayerSession.SavedState(tracks, data.shuffle(), PlayerSession.Mode.valueOf(data.mode()),
                     MusicFrequency.fromSaved(data.musicFrequency()), bias, StartupMode.fromSaved(data.startupMode()),
-                    MusicFrequency.fromSaved(data.playlistFrequency(), MusicFrequency.NON_STOP));
+                    MusicFrequency.fromSaved(data.playlistFrequency(), MusicFrequency.NON_STOP),
+                    toTrack(data.pausedTrack()));
         } catch (IOException | RuntimeException exception) {
             preserveUnreadableFile = true;
             LOGGER.warn("Could not load Better Radio's personal playlist; using Free flow", exception);
@@ -70,7 +71,8 @@ final class PlayerSettingsStore {
             Document data = new Document(1, saved.playlist().stream()
                     .map(track -> new TrackReference(track.id(), track.biomeIds(), track.sourceIds())).toList(),
                     saved.shuffle(), saved.mode().name(), saved.musicFrequency().name(),
-                    saved.biomeBiasPercent(), saved.startupMode().name(), saved.playlistFrequency().name());
+                    saved.biomeBiasPercent(), saved.startupMode().name(), saved.playlistFrequency().name(),
+                    toReference(saved.pausedTrack()));
             Files.writeString(temporary, GSON.toJson(data), StandardCharsets.UTF_8);
             try {
                 Files.move(temporary, file, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
@@ -83,5 +85,15 @@ final class PlayerSettingsStore {
             try { Files.deleteIfExists(temporary); } catch (IOException ignored) { }
             return false;
         }
+    }
+
+    private static MusicTrack toTrack(TrackReference track) {
+        return track == null ? null : new MusicTrack(track.id(),
+                track.biomeIds() == null ? Set.of() : track.biomeIds(),
+                track.sourceIds() == null ? Set.of() : track.sourceIds());
+    }
+
+    private static TrackReference toReference(MusicTrack track) {
+        return track == null ? null : new TrackReference(track.id(), track.biomeIds(), track.sourceIds());
     }
 }

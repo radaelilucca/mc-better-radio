@@ -13,7 +13,8 @@ public final class PlayerSession {
     public enum Source { HISTORY, MANUAL, PLAYLIST }
     public record QueueEntry(long key, MusicTrack track, Source source) { }
     public record SavedState(List<MusicTrack> playlist, boolean shuffle, Mode mode, MusicFrequency musicFrequency,
-                             int biomeBiasPercent, StartupMode startupMode, MusicFrequency playlistFrequency) {
+                             int biomeBiasPercent, StartupMode startupMode, MusicFrequency playlistFrequency,
+                             MusicTrack pausedTrack) {
         public SavedState(List<MusicTrack> playlist, boolean shuffle, Mode mode) {
             this(playlist, shuffle, mode, MusicFrequency.BALANCED);
         }
@@ -25,6 +26,11 @@ public final class PlayerSession {
         public SavedState(List<MusicTrack> playlist, boolean shuffle, Mode mode, MusicFrequency musicFrequency,
                           int biomeBiasPercent, StartupMode startupMode) {
             this(playlist, shuffle, mode, musicFrequency, biomeBiasPercent, startupMode, MusicFrequency.NON_STOP);
+        }
+
+        public SavedState(List<MusicTrack> playlist, boolean shuffle, Mode mode, MusicFrequency musicFrequency,
+                          int biomeBiasPercent, StartupMode startupMode, MusicFrequency playlistFrequency) {
+            this(playlist, shuffle, mode, musicFrequency, biomeBiasPercent, startupMode, playlistFrequency, null);
         }
 
         public SavedState {
@@ -57,7 +63,9 @@ public final class PlayerSession {
     private MusicFrequency playlistFrequency;
     private int biomeBiasPercent;
     private StartupMode startupMode;
-    private String pausedTrackId;
+    private MusicTrack pausedTrack;
+    private boolean pausedRestoreRequested;
+    private int pausedRestoreCooldown;
     private long nextKey = 1;
     private long revision;
     private List<MusicTrack> lastCatalog = List.of();
@@ -74,6 +82,7 @@ public final class PlayerSession {
         musicFrequency = saved.musicFrequency();
         playlistFrequency = saved.playlistFrequency();
         biomeBiasPercent = saved.biomeBiasPercent();
+        pausedTrack = saved.pausedTrack();
     }
 
     public static SavedState defaults() {
@@ -81,7 +90,8 @@ public final class PlayerSession {
     }
 
     public SavedState savedState() {
-        return new SavedState(playlist, shuffle, mode, musicFrequency, biomeBiasPercent, startupMode, playlistFrequency);
+        return new SavedState(playlist, shuffle, mode, musicFrequency, biomeBiasPercent, startupMode,
+                playlistFrequency, pausedTrack);
     }
     public long revision() { return revision; }
 
@@ -131,11 +141,11 @@ public final class PlayerSession {
         }
         manual.stream().filter(entry -> resolve(entry.track(), catalog).isPresent()).forEach(upcoming::add);
         if (mode == Mode.PLAYLIST) upcoming.addAll(cycle);
-        Optional<MusicTrack> current = platform.currentTrack();
+        Optional<MusicTrack> current = platform.currentTrack().or(() -> Optional.ofNullable(pausedTrack));
         boolean previous = visited.subList(0, Math.max(0, navigation.position())).stream()
                 .anyMatch(track -> resolve(track, catalog).isPresent());
         Mode effectiveMode = mode == Mode.PLAYLIST && cycle.isEmpty() ? Mode.FREE_FLOW : mode;
-        return new Snapshot(current, isPaused(current), effectiveMode, shuffle, List.copyOf(upcoming),
+        return new Snapshot(current, pausedTrack != null, effectiveMode, shuffle, List.copyOf(upcoming),
                 List.copyOf(journal), List.copyOf(playlist),
                 mode == Mode.FREE_FLOW || cycle.isEmpty(), previous, musicFrequency, biomeBiasPercent, startupMode,
                 playlistFrequency);
@@ -220,6 +230,7 @@ public final class PlayerSession {
     }
 
     public Optional<MusicTrack> activatePlaylist(MusicPlatform platform) {
+        if (pausedTrack != null) return Optional.empty();
         mode = Mode.PLAYLIST;
         cycle.clear();
         prepare(platform.eligibleTracks());
@@ -233,6 +244,7 @@ public final class PlayerSession {
     }
 
     public Optional<MusicTrack> playNext(MusicPlatform platform) {
+        if (pausedTrack != null) return Optional.empty();
         List<MusicTrack> catalog = platform.eligibleTracks();
         prepare(catalog);
         Optional<MusicTrack> next;
@@ -254,6 +266,7 @@ public final class PlayerSession {
     }
 
     public Optional<MusicTrack> playPrevious(MusicPlatform platform) {
+        if (pausedTrack != null) return Optional.empty();
         List<MusicTrack> catalog = platform.eligibleTracks();
         Optional<MusicTrack> previous;
         do {
@@ -263,11 +276,13 @@ public final class PlayerSession {
     }
 
     public Optional<MusicTrack> playNow(MusicPlatform platform, MusicTrack track) {
+        if (pausedTrack != null) return Optional.empty();
         return resolve(track, platform.eligibleTracks()).flatMap(found -> start(platform, found, true));
     }
 
     /** Consumes the selected entry and every earlier upcoming entry, preserving everything after it. */
     public Optional<MusicTrack> skipTo(MusicPlatform platform, long key) {
+        if (pausedTrack != null) return Optional.empty();
         Snapshot state = snapshot(platform);
         Optional<QueueEntry> selected = state.upcoming().stream().filter(entry -> entry.key() == key).findFirst();
         if (selected.isEmpty()) return Optional.empty();
@@ -293,7 +308,6 @@ public final class PlayerSession {
     private Optional<MusicTrack> start(MusicPlatform platform, MusicTrack track, boolean record) {
         platform.stopCurrentTrack();
         platform.startTrack(track);
-        pausedTrackId = null;
         if (record) {
             navigation.discardForward();
             navigation.record(track);
@@ -304,16 +318,66 @@ public final class PlayerSession {
     }
 
     public boolean togglePause(MusicPlatform platform) {
+        if (pausedTrack != null) {
+            Optional<MusicTrack> current = platform.currentTrack();
+            if (current.filter(track -> track.id().equals(pausedTrack.id())).isPresent()) {
+                if (!platform.resumeCurrentTrack()) return false;
+            } else {
+                Optional<MusicTrack> restored = resolve(pausedTrack, platform.eligibleTracks());
+                if (current.isEmpty() && restored.isEmpty()) {
+                    pausedTrack = null;
+                    pausedRestoreRequested = false;
+                    revision++;
+                    return true;
+                }
+                platform.stopCurrentTrack();
+                if (restored.isPresent()) platform.startTrack(restored.get());
+            }
+            pausedTrack = null;
+            pausedRestoreRequested = false;
+            pausedRestoreCooldown = 0;
+            revision++;
+            return true;
+        }
         Optional<MusicTrack> current = platform.currentTrack();
         if (current.isEmpty()) return playNext(platform).isPresent();
-        boolean wasPaused = isPaused(current);
-        if (!(wasPaused ? platform.resumeCurrentTrack() : platform.pauseCurrentTrack())) return false;
-        pausedTrackId = wasPaused ? null : current.get().id();
+        if (!platform.pauseCurrentTrack()) return false;
+        pausedTrack = current.get();
+        pausedRestoreRequested = true;
+        pausedRestoreCooldown = 20;
         revision++;
         return true;
     }
 
     public boolean isPaused(Optional<MusicTrack> current) {
-        return current.map(MusicTrack::id).filter(id -> id.equals(pausedTrackId)).isPresent();
+        return pausedTrack != null;
+    }
+
+    public boolean isPlaybackPaused() {
+        return pausedTrack != null;
+    }
+
+    /** Restores a persisted pause latch and keeps its track paused across audio/world resets. */
+    public void maintainPausedPlayback(MusicPlatform platform) {
+        if (pausedTrack == null) return;
+        Optional<MusicTrack> current = platform.currentTrack();
+        if (current.isPresent() && !current.get().id().equals(pausedTrack.id())) {
+            platform.stopCurrentTrack();
+            pausedRestoreRequested = false;
+            pausedRestoreCooldown = 0;
+            return;
+        }
+        if (current.isPresent()) {
+            pausedRestoreRequested = true;
+            pausedRestoreCooldown = 20;
+            platform.pauseCurrentTrack();
+            return;
+        }
+        if (pausedRestoreRequested && --pausedRestoreCooldown > 0) return;
+        resolve(pausedTrack, platform.eligibleTracks()).ifPresent(track -> {
+            platform.startTrack(track);
+            pausedRestoreRequested = true;
+            pausedRestoreCooldown = 20;
+        });
     }
 }

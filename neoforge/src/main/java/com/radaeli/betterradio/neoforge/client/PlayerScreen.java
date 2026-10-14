@@ -163,19 +163,20 @@ final class PlayerScreen extends UiScreen {
         CenteredGroup controls = new CenteredGroup(8);
         IconButton switchMode = controls.add(icon(currentModeIcon, currentModeName,
                 playlistMode ? MusicClientNeoForge::freeFlow : MusicClientNeoForge::activatePlaylist));
-        switchMode.setEnabled(playlistMode || state.playlist().stream().anyMatch(lastCatalog::contains));
+        switchMode.setEnabled(!state.paused()
+                && (playlistMode || state.playlist().stream().anyMatch(lastCatalog::contains)));
         switchMode.tooltip(
                 text(playlistMode ? "playlist_mode_title" : "free_flow_mode_title"),
                 text(playlistMode ? "playlist_mode_help" : "free_flow_mode_help"),
                 text(playlistMode ? "switch_to_free_flow" : "switch_to_playlist"));
         IconButton previous = controls.add(icon("|<", "previous", MusicClientNeoForge::playPrevious));
-        previous.setEnabled(state.canPrevious());
+        previous.setEnabled(!state.paused() && state.canPrevious());
         IconButton playPause = controls.add(icon(state.current().isPresent() && !state.paused() ? "||" : ">",
                 state.current().isPresent() && !state.paused() ? "pause" : "play",
                 MusicClientNeoForge::togglePause));
         playPause.setEnabled(state.current().isPresent() || !lastCatalog.isEmpty());
         IconButton next = controls.add(icon(">|", "next", MusicClientNeoForge::playNext));
-        next.setEnabled(!lastCatalog.isEmpty());
+        next.setEnabled(!state.paused() && !lastCatalog.isEmpty());
         IconButton shuffle = controls.add(icon("⇄", "shuffle", () ->
                 MusicClientNeoForge.setShuffle(!state.shuffle())));
         shuffle.tooltip(text("shuffle_help"));
@@ -196,8 +197,9 @@ final class PlayerScreen extends UiScreen {
         }
         player.header.add(new Label(text("up_next")));
         for (PlayerSession.QueueEntry entry : state.upcoming()) {
-            player.addListItem(new TrackRow(MusicClientNeoForge.trackName(entry.track()),
-                    icon(">", "skip_to", () -> MusicClientNeoForge.skipTo(entry.key()))));
+            IconButton skip = icon(">", "skip_to", () -> MusicClientNeoForge.skipTo(entry.key()));
+            skip.setEnabled(!state.paused());
+            player.addListItem(new TrackRow(MusicClientNeoForge.trackName(entry.track()), skip));
         }
         if (lastCatalog.isEmpty()) {
             player.addListItem(new FittingLabel(text("empty_catalog")));
@@ -256,8 +258,8 @@ final class PlayerScreen extends UiScreen {
             IconButton save = icon("↓", "save_to_playlist", () -> saveHistoryTrack(track));
             save.setEnabled(trackAvailable && canSave);
             if (!canSave) save.tooltip(text("already_added"));
-            enqueue.setEnabled(trackAvailable);
-            play.setEnabled(trackAvailable);
+            enqueue.setEnabled(trackAvailable && !state.paused());
+            play.setEnabled(trackAvailable && !state.paused());
             history.addListItem(new TrackRow(name, enqueue, play, save));
         }
     }

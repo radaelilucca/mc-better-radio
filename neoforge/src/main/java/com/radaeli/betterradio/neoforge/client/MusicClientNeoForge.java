@@ -164,8 +164,13 @@ public final class MusicClientNeoForge {
 
     static void togglePause() {
         if (inWorld() && session.togglePause(platform())) {
-            Optional<MusicTrack> current = platform().currentTrack();
-            if (current.isPresent()) showPlayback(current.get(), session.isPaused(current));
+            boolean paused = session.isPlaybackPaused();
+            autoplayObservedPlayback = !paused;
+            autoplayDelayTicks = -1;
+            idleStateKey = paused ? "nothing_playing" : "interval";
+            Optional<MusicTrack> current = snapshot().current();
+            if (current.isPresent()) showPlayback(current.get(), paused);
+            saveSettings();
         }
     }
 
@@ -217,6 +222,7 @@ public final class MusicClientNeoForge {
 
     /** Apply a new preference during silence without replacing the initial world-entry delay. */
     private static void refreshAutoplayInterval() {
+        if (session.isPlaybackPaused()) return;
         PlayerSession.Snapshot state = snapshot();
         if (state.current().isEmpty() && !state.history().isEmpty()) {
             autoplayDelayTicks = session.nextAutoplayDelayTicks(platform());
@@ -284,9 +290,9 @@ public final class MusicClientNeoForge {
             activeConnection = new WeakReference<>(minecraft.getConnection());
             session = new PlayerSession(new Random(), session.savedState());
             PLAYBACK_TOAST.clear();
-            autoplayDelayTicks = randomInitialDelayTicks();
+            autoplayDelayTicks = session.isPlaybackPaused() ? -1 : randomInitialDelayTicks();
             autoplayObservedPlayback = false;
-            idleStateKey = "starting";
+            idleStateKey = session.isPlaybackPaused() ? "nothing_playing" : "starting";
         }
         if (activeLevel.get() != minecraft.level) {
             activeLevel = new WeakReference<>(minecraft.level);
@@ -298,9 +304,19 @@ public final class MusicClientNeoForge {
 
     private static void tickAutoplay() {
         Minecraft minecraft = Minecraft.getInstance();
-        if (!inWorld() || minecraft.options.getSoundSourceVolume(SoundSource.MUSIC) <= 0.0F
-                || (minecraft.screen != null && minecraft.screen.getBackgroundMusic() != null)) return;
+        if (!inWorld()) return;
         NeoForgeMusicPlatform platform = platform();
+        if (session.isPlaybackPaused()) {
+            autoplayObservedPlayback = false;
+            autoplayDelayTicks = -1;
+            if (minecraft.options.getSoundSourceVolume(SoundSource.MUSIC) > 0.0F
+                    && (minecraft.screen == null || minecraft.screen.getBackgroundMusic() == null)) {
+                session.maintainPausedPlayback(platform);
+            }
+            return;
+        }
+        if (minecraft.options.getSoundSourceVolume(SoundSource.MUSIC) <= 0.0F
+                || (minecraft.screen != null && minecraft.screen.getBackgroundMusic() != null)) return;
         if (platform.currentTrack().isPresent()) {
             autoplayObservedPlayback = true;
             autoplayDelayTicks = -1;

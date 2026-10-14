@@ -58,6 +58,7 @@ public final class MusicClientForge {
     private static final int AUTOPLAY_RETRY_TICKS = 100;
     private static final Random AUTOPLAY_RANDOM = new Random();
     private static final Logger LOGGER = LoggerFactory.getLogger(BetterRadio.MOD_ID);
+    private static final PlaybackPauseStore PAUSE_STATE = new PlaybackPauseStore();
     private static final KeyMapping PLAY_NEXT_KEY = new KeyMapping(
             "key.better_radio.play_next", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_F8,
             "key.categories.better_radio");
@@ -188,6 +189,7 @@ public final class MusicClientForge {
                 describeHistory(controller.history()));
         track.ifPresent(value -> showAction(minecraft,
                 paused ? PlaybackToast.State.PAUSED : PlaybackToast.State.PLAYING, value, paused));
+        PAUSE_STATE.save(controller.pausedTrack());
     }
 
     private static void playPrevious() {
@@ -300,8 +302,9 @@ public final class MusicClientForge {
             stopOwnedPlayback(minecraft);
             activeLevel = new WeakReference<>(minecraft.level);
             controller = createController();
+            PAUSE_STATE.load().ifPresent(controller::restorePausedTrack);
             PLAYBACK_TOAST.clear();
-            autoplayDelayTicks = VANILLA_INITIAL_MUSIC_DELAY_TICKS;
+            autoplayDelayTicks = controller.isPlaybackPaused() ? -1 : VANILLA_INITIAL_MUSIC_DELAY_TICKS;
             autoplayObservedPlayback = false;
         }
         boolean screenOwnsBackground = minecraft.screen != null && minecraft.screen.getBackgroundMusic() != null;
@@ -437,12 +440,16 @@ public final class MusicClientForge {
 
     private static void tickAutoplay() {
         Minecraft minecraft = Minecraft.getInstance();
-        if (minecraft.player == null || minecraft.level == null
-                || (minecraft.screen != null && minecraft.screen.getBackgroundMusic() != null)) {
-            return;
-        }
+        if (minecraft.player == null || minecraft.level == null) return;
 
         MusicPlatform platform = new ForgeMusicPlatform(minecraft);
+        if (controller.isPlaybackPaused()) {
+            autoplayObservedPlayback = false;
+            autoplayDelayTicks = -1;
+            controller.maintainPausedPlayback(platform);
+            return;
+        }
+        if (minecraft.screen != null && minecraft.screen.getBackgroundMusic() != null) return;
         Optional<MusicTrack> current = platform.currentTrack();
         if (current.isPresent()) {
             autoplayObservedPlayback = true;

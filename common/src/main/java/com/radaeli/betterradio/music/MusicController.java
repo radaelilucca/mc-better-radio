@@ -9,6 +9,8 @@ public final class MusicController {
     private final MusicSelector selector;
     private final MusicHistory history;
     private String pausedTrackId;
+    private boolean pausedRestoreRequested;
+    private int pausedRestoreCooldown;
 
     public MusicController(MusicSelector selector, MusicHistory history) {
         this.selector = Objects.requireNonNull(selector, "selector");
@@ -54,6 +56,7 @@ public final class MusicController {
     /** Plays the selected next track through a loader-specific platform adapter. */
     public Optional<MusicTrack> playNext(MusicPlatform platform) {
         Objects.requireNonNull(platform, "platform");
+        if (pausedTrackId != null) return Optional.empty();
         Optional<MusicTrack> current = platform.currentTrack();
         Optional<MusicTrack> selected = next(platform.eligibleTracks(), current, platform.currentBiomeId());
         if (selected.isEmpty()) {
@@ -61,7 +64,6 @@ public final class MusicController {
         }
 
         current.ifPresent(ignored -> platform.stopCurrentTrack());
-        pausedTrackId = null;
         platform.startTrack(selected.get());
         return selected;
     }
@@ -75,6 +77,7 @@ public final class MusicController {
     /** Replays the previous visited track and moves the queue cursor back one position. */
     public Optional<MusicTrack> playPrevious(MusicPlatform platform) {
         Objects.requireNonNull(platform, "platform");
+        if (pausedTrackId != null) return Optional.empty();
         Optional<MusicTrack> current = platform.currentTrack();
         current.ifPresent(history::record);
         List<MusicTrack> eligibleTracks = platform.eligibleTracks();
@@ -87,7 +90,6 @@ public final class MusicController {
         }
 
         current.ifPresent(ignored -> platform.stopCurrentTrack());
-        pausedTrackId = null;
         platform.startTrack(previous.get());
         return previous;
     }
@@ -97,8 +99,14 @@ public final class MusicController {
         Objects.requireNonNull(platform, "platform");
         Optional<MusicTrack> current = platform.currentTrack();
         if (current.isEmpty()) {
+            if (pausedTrackId == null) return false;
+            MusicTrack resolved = platform.eligibleTracks().stream().filter(track -> track.id().equals(pausedTrackId))
+                    .findFirst().orElse(null);
+            if (resolved != null) platform.startTrack(resolved);
             pausedTrackId = null;
-            return false;
+            pausedRestoreRequested = false;
+            pausedRestoreCooldown = 0;
+            return true;
         }
 
         String currentId = current.get().id();
@@ -108,6 +116,19 @@ public final class MusicController {
                 return false;
             }
             pausedTrackId = null;
+            pausedRestoreRequested = false;
+            pausedRestoreCooldown = 0;
+            return true;
+        }
+
+        if (pausedTrackId != null) {
+            platform.stopCurrentTrack();
+            MusicTrack paused = platform.eligibleTracks().stream().filter(track -> track.id().equals(pausedTrackId))
+                    .findFirst().orElse(null);
+            if (paused != null) platform.startTrack(paused);
+            pausedTrackId = null;
+            pausedRestoreRequested = false;
+            pausedRestoreCooldown = 0;
             return true;
         }
 
@@ -115,11 +136,54 @@ public final class MusicController {
             return false;
         }
         pausedTrackId = currentId;
+        pausedRestoreRequested = true;
+        pausedRestoreCooldown = 20;
         return true;
     }
 
     public boolean isPaused(Optional<MusicTrack> currentTrack) {
-        return currentTrack.map(MusicTrack::id).filter(id -> id.equals(pausedTrackId)).isPresent();
+        return pausedTrackId != null;
+    }
+
+    public boolean isPlaybackPaused() {
+        return pausedTrackId != null;
+    }
+
+    public Optional<MusicTrack> pausedTrack() {
+        if (pausedTrackId == null) return Optional.empty();
+        return history.tracks().stream().filter(track -> track.id().equals(pausedTrackId)).findFirst();
+    }
+
+    public void restorePausedTrack(MusicTrack track) {
+        pausedTrackId = track == null ? null : track.id();
+        pausedRestoreRequested = false;
+        pausedRestoreCooldown = 0;
+        if (track != null) history.record(track);
+    }
+
+    /** Reapplies the pause latch after an audio/world reset and rejects any unexpected replacement track. */
+    public void maintainPausedPlayback(MusicPlatform platform) {
+        if (pausedTrackId == null) return;
+        Optional<MusicTrack> current = platform.currentTrack();
+        if (current.isPresent() && !current.get().id().equals(pausedTrackId)) {
+            platform.stopCurrentTrack();
+            current = Optional.empty();
+            pausedRestoreRequested = false;
+            pausedRestoreCooldown = 0;
+        }
+        if (current.isPresent()) {
+            pausedRestoreRequested = true;
+            pausedRestoreCooldown = 20;
+            platform.pauseCurrentTrack();
+            return;
+        }
+        if (pausedRestoreRequested && --pausedRestoreCooldown > 0) return;
+        platform.eligibleTracks().stream().filter(track -> track.id().equals(pausedTrackId)).findFirst()
+                .ifPresent(track -> {
+                    platform.startTrack(track);
+                    pausedRestoreRequested = true;
+                    pausedRestoreCooldown = 20;
+                });
     }
 
     public MusicHistory history() {

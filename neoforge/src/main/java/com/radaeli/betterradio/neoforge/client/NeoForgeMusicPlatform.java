@@ -96,7 +96,8 @@ final class NeoForgeMusicPlatform implements MusicPlatform {
 
     @Override
     public boolean pauseCurrentTrack() {
-        if (activeSound == null || pausedByUser || !MusicChannelPauseBridge.setSoundInstancePaused(
+        if (pausedByUser) return true;
+        if (activeSound == null || !MusicChannelPauseBridge.setSoundInstancePaused(
                 minecraft.getSoundManager(), activeSound, true)) {
             return false;
         }
@@ -106,10 +107,11 @@ final class NeoForgeMusicPlatform implements MusicPlatform {
 
     @Override
     public boolean resumeCurrentTrack() {
-        if (activeSound == null || !pausedByUser || !MusicChannelPauseBridge.setSoundInstancePaused(
-                minecraft.getSoundManager(), activeSound, false)) {
+        if (activeSound == null || !pausedByUser) {
             return false;
         }
+        if (!suspendedForVanillaScreen && !MusicChannelPauseBridge.setSoundInstancePaused(
+                minecraft.getSoundManager(), activeSound, false)) return false;
         pausedByUser = false;
         return true;
     }

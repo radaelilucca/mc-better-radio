@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.1.1] - 2026-10-14
+
+### Fixed
+
+- Paused music stays paused instead of being replaced by another track, including after reloading the world or game.
+
 ## [0.1.0] - 2026-10-09
 
 ### Added
