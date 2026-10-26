@@ -1,41 +1,75 @@
-# Better Radio
+<p align="center" style="text-align: center;"><img src="https://media.forgecdn.net/avatars/thumbnails/2105/371/256/256/639271794836153521.png" alt="Better Radio"></p>
 
-> Minecraft's soundtrack, on your terms.
+<p align="center" style="text-align: center;">Minecraft's soundtrack, on your terms</p>
 
-Give every build, mining trip, and adventure the music you want to hear. Better Radio brings Minecraft's background tracks and music discs into a personal music player, with simple controls to skip, pause, and revisit your favorite songs.
+<p align="center" style="background-color: #F4ECD0; text-align: center;"><img src="https://raw.githubusercontent.com/radaelilucca/mc-better-radio/main/docs/gallery/section-titles/what_it_is.png" alt="WHAT IT IS?" width="267"></p>
 
+Minecraft's background music and discs can be hard to control while you're playing. **Better Radio** puts them in a personal player, so you can choose what to hear, manage a playlist, and return to tracks from your history.
 
-![Better Radio player](https://github.com/radaelilucca/mc-better-radio/blob/main/docs/gallery/br%20-%20player.png?raw=true)
+---
 
+<p align="center" style="background-color: #F4ECD0; text-align: center;"><img src="https://raw.githubusercontent.com/radaelilucca/mc-better-radio/main/docs/gallery/section-titles/what_can_it_do.png" alt="WHAT CAN IT DO?" width="375"></p>
 
-## Choose your mood
+<p align="center" style="text-align: center;"><img src="https://raw.githubusercontent.com/radaelilucca/mc-better-radio/main/docs/gallery/br%20-%20player.png" alt="The Better Radio player" width="520"></p>
 
-**Free flow:** Let the music find you as you explore, with a preference for background tracks that suit your biome. Choose Frequent, Balanced, Occasional, or Non-stop to set the pace.
+### Free flow
 
-**Playlist:** Build a mix of background music and discs, then play it on repeat or turn on shuffle. Choose its pace independently from Free flow, with a short 2–4 second pause by default. Your saved playlist follows you between worlds.
+**Let the game choose the next track.** Free flow draws from eligible background music and discs, with a preference for tracks associated with your biome.
 
-## Your music, within reach
+### Playlist
 
-Press **F6** to open the player:
+**Make a personal mix and play it on repeat.** Add tracks from the library or your listening history, then shuffle the upcoming playlist when you want a different order.
 
-- **Player tab:** Follow the current track's progress, pause or resume, skip tracks, switch listening modes, toggle shuffle, and see what's coming next. Jump to a queued song whenever you want.
-- **History tab:** Find a song you just heard, play it again, add it to the queue, or save it to your playlist.
-- **Playlist tab:** Search the music library, add your favorites, and remove tracks from your mix.
-- **Settings tab:** Choose separate intervals for Free flow and Playlist, adjust how strongly music follows your biome, and choose which mode starts with your world. Your preferences stay saved between sessions.
+### Player, history, and library
 
-Background tracks and discs from compatible music mods can appear in your library too.
+**Control playback without leaving your world.** Open the player to pause or resume, skip tracks, browse what you heard, search the library, and add favorites to your playlist. Music from compatible mods can appear in the library too.
 
-## Compatibility
+---
 
-Available for **Minecraft 1.20.1 (Forge)** and **Minecraft 1.21.1 (NeoForge)**. Both versions include the same player and settings.
+<p align="center" style="background-color: #F4ECD0; text-align: center;"><img src="https://raw.githubusercontent.com/radaelilucca/mc-better-radio/main/docs/gallery/section-titles/how-do-i-use-it.png" alt="HOW DO I USE IT?" width="371"></p>
 
-## Default controls
+1. Press **F6** to open Better Radio. The key can be changed in **Options → Controls → Key Binds → Better Radio**.
+2. Use **Player**, **History**, **Playlist**, and **Settings** to choose music and control playback.
+3. Press **F7** for the previous track, **F8** to play or pause, and **F9** for the next track. These shortcuts also work while the player is open.
+4. Adjust playback volume with the **Music** slider in **Music & Sounds**.
 
-| Action | Key |
-| --- | --- |
-| Open the player | **F6** |
-| Previous track | **F7** |
-| Play / pause / resume | **F8** |
-| Next track | **F9** |
+> **Heads up:** Better Radio controls gameplay background music and music discs. Menu and credits music remain under Minecraft's control.
 
-Remap your shortcuts in **Options → Controls → Key Binds → Better Radio**. Adjust playback volume with the **Music** slider in **Music & Sounds**.
+---
+
+<p align="center" style="background-color: #F4ECD0; text-align: center;"><img src="https://raw.githubusercontent.com/radaelilucca/mc-better-radio/main/docs/gallery/section-titles/can_i_config.png" alt="CAN I CONFIGURE IT?" width="479"></p>
+
+Yes. Open the **Settings** tab to choose how music plays:
+
+| Setting | Default | What it does |
+| --- | --- | --- |
+| Free flow interval | Balanced | Sets the silence between tracks: Frequent (1–2 min), Balanced (2–5 min), Occasional (5–10 min), or Non-stop (2–4 sec). |
+| Playlist interval | Non-stop | Sets the pause between playlist tracks using the same choices, independently of Free flow. |
+| Biome preference | 100% | Controls how strongly Free flow favors music associated with the current biome. At 100%, biome-associated tracks are favored, but other eligible tracks can still play. |
+| Starting mode | Last used | Choose whether a world starts in your last mode, Free flow, or Playlist. |
+
+---
+
+<p align="center" style="background-color: #F4ECD0; text-align: center;"><img src="https://raw.githubusercontent.com/radaelilucca/mc-better-radio/main/docs/gallery/section-titles/requirements.png" alt="REQUIREMENTS" width="355"></p>
+
+Better Radio is a client-side mod. Install it and **R-UI Lib** on each client that will use the player; no server installation is needed.
+
+- **Minecraft 1.20.1** with **Forge 47.4.20**
+- **Minecraft 1.21.1** with **NeoForge 21.1.236**
+- **R-UI Lib 0.5.0** or newer, required on the client
+
+---
+
+<p align="center" style="background-color: #F4ECD0; text-align: center;"><img src="https://raw.githubusercontent.com/radaelilucca/mc-better-radio/main/docs/gallery/section-titles/found_a_bug.png" alt="FOUND A BUG?" width="317"></p>
+
+[Open an issue on GitHub](https://github.com/radaelilucca/mc-better-radio/issues). Include your Minecraft, loader, Better Radio, and R-UI Lib versions, plus the listening mode and steps that led to the issue. Screenshots of the player or settings can help.
+
+---
+
+<p align="center" style="background-color: #F4ECD0; text-align: center;"><img src="https://raw.githubusercontent.com/radaelilucca/mc-better-radio/main/docs/gallery/section-titles/can_i_use.png" alt="CAN I USE THIS IN A MODPACK?" width="679"></p>
+
+**Yes.** Better Radio is licensed under the **MIT License**. See [LICENSE](https://github.com/radaelilucca/mc-better-radio/blob/main/LICENSE).
+
+---
+
+*For details about the player and playback controls, see the [player guide](https://github.com/radaelilucca/mc-better-radio/blob/main/docs/player.md) and [CHANGELOG](https://github.com/radaelilucca/mc-better-radio/blob/main/CHANGELOG.md).*
